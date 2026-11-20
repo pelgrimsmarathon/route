@@ -98,7 +98,12 @@
       </div>
       <label>Naam (verschijnt in WorkOutDoors)</label>
       <input type="text" id="stageName" value="">
-      <label class="chk"><input type="checkbox" id="cut" checked> Afknippen op deze afstand</label>
+      <label>Einde van de etappe</label>
+      <select id="endMode">
+        <option value="goal">Eindigen bij richtpunt (minimaal deze afstand)</option>
+        <option value="cut">Precies deze afstand (afknippen)</option>
+      </select>
+      <div class="hint">Bij <i>eindigen bij richtpunt</i> mag de etappe langer zijn. Is de route tot het richtpunt korter, dan loopt de route voorbij het richtpunt een stukje door en weer terug, zodat je toch minstens de afstand haalt.</div>
     </fieldset>
 
     <fieldset>
@@ -114,8 +119,8 @@
         <button id="locBtn">Mijn locatie = start</button>
       </div>
       <div class="hint">
-        <b>S</b> = start (waar de vorige etappe eindigde). <b>R</b> = richtpunt: staat standaard op Santiago; zet het op een tussenstad
-        (bv. Namur, Vézelay) als je bij een splitsing een specifieke variant wilt. Klik op de kaart voor een tussenpunt (alleen bij eigen routering).
+        <b>S</b> = start (waar de vorige etappe eindigde). <b>R</b> = richtpunt: waar de etappe moet eindigen (bv. Maastricht), of bij <i>precies deze afstand</i>
+        de richting (standaard Santiago; zet het op een tussenstad als je bij een splitsing een specifieke variant wilt). Klik op de kaart voor een tussenpunt (alleen bij eigen routering).
       </div>
     </fieldset>
 
@@ -284,20 +289,20 @@
     }
     return { pts: out, len: acc, stop };
   }
-  function followReference(start, goal, target, cut, reverse) {
+  function followReference(start, goal, target, cut, reverse, goalTol = 400) {
     const n = nearestOnRef(start);
     if (n.si < 0) throw new Error('Geen officiële route geladen.');
     const f = walk(n.si, n.pi, 1, 6000, goal, true), b = walk(n.si, n.pi, -1, 6000, goal, true);
     let dir = hav(f.pts[f.pts.length - 1], goal) <= hav(b.pts[b.pts.length - 1], goal) ? 1 : -1;
     if (reverse) dir = -dir;
     const w = walk(n.si, n.pi, dir, cut ? target + 200 : 300000, goal, true);
-    let pts = w.pts, reachedGoal = false;
+    let pts = w.pts, reachedGoal = false, beyond = null, goalDist = null;
     if (!reverse) { // niet voorbij het richtpunt lopen
       let bi = 0, bd = Infinity;
       pts.forEach((p, i) => { const d = hav(p, goal); if (d < bd) { bd = d; bi = i; } });
-      if (bd < 400 && bi < pts.length - 1) { pts = pts.slice(0, bi + 1); reachedGoal = true; }
+      if (bd < goalTol) { reachedGoal = true; beyond = pts.slice(bi); pts = pts.slice(0, bi + 1); goalDist = bd; }
     }
-    return { pts, offset: n.d, stop: w.stop, reachedGoal };
+    return { pts, offset: n.d, stop: w.stop, reachedGoal, beyond, goalDist };
   }
 
   // ---------- kaart ----------
@@ -372,7 +377,7 @@
   };
 
   // ---------- instellingen ----------
-  const textIds = ['stageNo', 'target', 'stageName', 'profile'], boolIds = ['cut', 'followRef', 'refReverse', 'kmMarks'];
+  const textIds = ['stageNo', 'target', 'stageName', 'profile', 'endMode'], boolIds = ['followRef', 'refReverse', 'kmMarks'];
   const settings = store.get('settings', {});
   for (const id of textIds) if (settings[id] != null) $(id).value = settings[id];
   for (const id of boolIds) if (settings[id] != null) $(id).checked = settings[id];
@@ -390,7 +395,7 @@
     if (/^Pelgrimsmarathon etappe \d*$/.test($('stageName').value) || !$('stageName').value) $('stageName').value = defaultName();
     saveSettings();
   });
-  for (const id of ['target', 'profile', 'cut', 'followRef', 'refReverse']) $(id).addEventListener('change', () => { saveSettings(); autoRoute(); });
+  for (const id of ['target', 'profile', 'endMode', 'followRef', 'refReverse']) $(id).addEventListener('change', () => { saveSettings(); autoRoute(); });
   for (const id of ['stageName', 'kmMarks']) $(id).addEventListener('change', () => { saveSettings(); draw(); });
   document.querySelectorAll('input[name=src]').forEach(r => r.addEventListener('change', () => { saveSettings(); applySource(); autoRoute(); }));
 
@@ -577,9 +582,10 @@
     const my = ++seqNo;
     const start = ll(startM), goal = ll(endM);
     const target = parseFloat($('target').value) * 1000 || 42195;
-    const cut = $('cut').checked;
+    const toGoal = $('endMode').value === 'goal' && hav(start, goal) < 150000;
+    const cut = !toGoal;
+    let note = $('endMode').value === 'goal' && !toGoal ? `<div class="hint">Richtpunt ligt ver weg; etappe afgeknipt op de doelafstand. Zet het richtpunt op de plaats waar je wilt eindigen.</div>` : '';
     $('stats').innerHTML = 'Route berekenen…';
-    let note = '';
     try {
       let pts;
       if ($('followRef').checked && src() === 'osm' && (!osm || distToBboxEdge(start, osm.bbox) < REFETCH_MARGIN)) {
@@ -587,12 +593,31 @@
         if (my !== seqNo) return;
       }
       if ($('followRef').checked && refSegs) {
-        const f = followReference(start, goal, target, cut, $('refReverse').checked);
+        const f = followReference(start, goal, target, cut, $('refReverse').checked, toGoal ? 1500 : 400);
         pts = f.pts; lastMode = 'ref';
+        if (toGoal) {
+          if (!f.reachedGoal) {
+            note += `<div class="warn">Het richtpunt ligt niet aan deze pelgrimsroute (of verder dan de opgehaalde routedata). Zet het richtpunt op of vlak bij de route; nu afgeknipt op de doelafstand.</div>`;
+            pts = cutAt(pts, target);
+          } else {
+            const l0 = len(pts);
+            if (f.goalDist > 300) note += `<div class="hint">Finish op het punt van de route het dichtst bij het richtpunt (${Math.round(f.goalDist)} m ervandaan).</div>`;
+            if (l0 < target) { // te kort: voorbij het richtpunt doorlopen en terug
+              const half = (target - l0) / 2 + 25;
+              const ext = cutAt(f.beyond || [], half);
+              if (ext.length > 1 && len(ext) >= half - 50) {
+                pts = pts.concat(ext.slice(1), ext.slice(0, -1).reverse());
+                note += `<div class="hint">Route tot het richtpunt is ${(l0 / 1000).toFixed(1)} km; aangevuld met een heen-en-terug van ${(2 * len(ext) / 1000).toFixed(1)} km voorbij het richtpunt.</div>`;
+              } else {
+                note += `<div class="warn">Route tot het richtpunt is maar ${(l0 / 1000).toFixed(1)} km en kon niet worden aangevuld. Zet het richtpunt verder weg.</div>`;
+              }
+            }
+          }
+        }
         if (f.offset > 150) note += `<div class="warn">Startpunt ligt ${f.offset < 2000 ? Math.round(f.offset) + ' m' : (f.offset / 1000).toFixed(1) + ' km'} naast de officiële route; de etappe begint op het dichtstbijzijnde punt van de route.</div>`;
         if (pts.length < 2) throw new Error('Kon de officiële route vanaf dit startpunt niet volgen.');
         const l = len(pts);
-        if (cut && l < target - 50 && !f.reachedGoal && f.stop === 'einde')
+        if (l < target - 50 && !f.reachedGoal && f.stop === 'einde')
           note += `<div class="warn">De routedata stopt na ${(l / 1000).toFixed(1)} km (gat of einde van de route). Zet een tweede route aan in de lijst, laad een officiële GPX, of zet de etappe vanaf de gele stip verder met eigen routering.</div>`;
       } else {
         lastMode = 'own';
@@ -609,6 +634,7 @@
       if (my !== seqNo) return;
       fullPts = pts;
       routePts = cut ? cutAt(pts, target) : pts.slice();
+      if (!cut && lastMode === 'own' && len(routePts) < target - 50) note += `<div class="warn">Route tot het richtpunt is korter dan de doelafstand (${(len(routePts) / 1000).toFixed(1)} km). Zet het richtpunt verder weg of voeg een tussenpunt toe.</div>`;
       draw(note, true);
     } catch (e) {
       if (my !== seqNo) return;
@@ -636,8 +662,8 @@
     finishM.setLatLng([end[0], end[1]]).addTo(map).bindTooltip('Finish etappe');
     const up = ascent(routePts);
     let msg = '';
-    if ($('cut').checked && total + 50 < target && !/routedata stopt/.test(note))
-      msg = `<div class="warn">${(total / 1000).toFixed(2)} km: het richtpunt ligt dichterbij dan de doelafstand. Leg het richtpunt verder weg (bv. terug op Santiago).</div>`;
+    if ($('endMode').value === 'cut' && total + 50 < target && !/routedata stopt/.test(note))
+      msg = `<div class="warn">${(total / 1000).toFixed(2)} km: het richtpunt ligt dichterbij dan de doelafstand. Leg het richtpunt verder weg (bv. terug op Santiago) of kies <i>eindigen bij richtpunt</i>.</div>`;
     $('stats').innerHTML = `<b class="big">${(total / 1000).toFixed(2)} km</b>${up ? ` · ↑ ${Math.round(up)} m` : ''}
       ${lastMode === 'ref' ? '<span class="ok"> · officiële route</span>' : ''}
       <br>Finish (gele stip): ${end[0].toFixed(5)}, ${end[1].toFixed(5)}` + msg + note;
