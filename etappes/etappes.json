@@ -120,6 +120,23 @@
     },
     {
       "nr": 8,
+      "titel": "Schottheide – Pfalzdorf",
+      "subtitel": "Halve marathon op de pelgrimsroute",
+      "datum": "2024-11-03",
+      "van": "Bedburg-Hau (Schottheide)",
+      "naar": "Bedburg-Hau (Pfalzdorf)",
+      "starttijd": "10:32",
+      "stats": {
+        "km": 24.26,
+        "looptijd_s": 8873,
+        "stijgen_m": 86,
+        "hartslag": 130
+      },
+      "lijn": "ke{zHoqzc@VmCn@gC~@eHlEiWFeAh@sBdAiB@gA_@yB]wEGoF\\_E~@oC^aDPqBAmDVs@`DRbAYPg@TyBtEqXBw@~BcMN_BFLdAmJ~EkX~Mo{@~Fi]VmClA_GR_CxB{LCUpC}PFXZGdGrDbEdBnNrIpE|Bn@p@nEjChDzA~IxFJLIFt@JdGrDfEpBbHnE@N|S~KzIrFxFlCpGbEnH`DdB~AbA\\zFnDnD|@|BPD_K}@iHOaCD`CLf@NDZdCR}AHaF\\oDvAkBn@MzDvAl@EBv@NXbFHHyG]eDKmEe@}@sA}@]sAC{BVyJKkGk@iGmB_JAc@^aA`B}BbAcCl@k@~@S`ElIXDd@[FkBOuFm@sIDgCRmAtC{HxC_N`@w@~B_ChB_EdA}@Rq@bDgBzAiBvA_@f@m@Hy@KcNQoB_AwF_DwHO{@CmNp@kTHkL_C_@oAhA{@XKYdDao@JcPFu@LK[WTeZN_Gh@oClA}BrLiLdCwC~PsVtKsQz@r@b@}@@aB~LsK|A{@tBi@dKaAjACb@Nl@e@~ViBxG_BzBeA|FqEj@`AaByF^bBN@jE}DnBgAfAYzBEpBw@dA_A\\r@`E{DnAgDj@u@nAtAr@Vd@n@Tj@RzBNNxA_C]_Bx@}A@uAL_@xAyBfB{GLeBa@SOc@WCGq@t@sDf@mFL_@t@Ox@{DHyAa@wBeAXuAp@[tCJEl@kFcCaXeAeYKa@QG^{@n@O_@Eu@yEyBeFkQwRoEmH_CaHy@mD_@wEIoDgC{OIMsB@y@cFGmBbFB`E|RzGxNd@h@tGxDxExRd@FfD_Cl@K|F~Q`CtGGt@s@r@PnDr@bE^fFAhP|@Cn@zR`@rGIpA]dBUfGW|C",
+      "privacyzone_m": 500
+    },
+    {
+      "nr": 9,
       "titel": "Bedburg-Hau – Walbeck",
       "subtitel": "Pelgrimsmarathon #8",
       "datum": "2025-07-05",
@@ -136,7 +153,7 @@
       "privacyzone_m": 500
     },
     {
-      "nr": 9,
+      "nr": 10,
       "titel": "Walbeck – Beesel",
       "subtitel": "Pelgrimsmarathon #9",
       "datum": "2025-12-19",
@@ -153,7 +170,7 @@
       "privacyzone_m": 500
     },
     {
-      "nr": 10,
+      "nr": 11,
       "titel": "Swalmen – Roosteren",
       "subtitel": "Pelgrimsmarathon #10",
       "datum": "2025-12-20",
