@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Pelgrimsmarathon">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#1f4e8c">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<title>Pelgrimsmarathon</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root { --acc:#1f4e8c; --gold:#f2b705; --ink:#222; --mut:#666; --bg:#f7f5f0; --line:#e3ddd3; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; color:var(--ink); -webkit-text-size-adjust:100%; }
+  #app { display:flex; height:100%; }
+  #panel { width:370px; max-width:100%; overflow:auto; -webkit-overflow-scrolling:touch; background:var(--bg); border-right:1px solid var(--line);
+           padding:calc(12px + env(safe-area-inset-top)) 14px calc(24px + env(safe-area-inset-bottom)) calc(14px + env(safe-area-inset-left)); }
+  #map { flex:1; }
+  h1 { font-size:19px; margin:0; display:flex; align-items:center; gap:8px; }
+  h1 .shell { width:26px; height:26px; }
+  #progress { color:var(--mut); font-size:13px; margin:2px 0 12px; }
+  fieldset { border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin:0 0 12px; background:#fff; }
+  legend { font-weight:600; font-size:13px; padding:0 4px; }
+  label { display:block; font-size:13px; margin:6px 0 3px; color:#444; }
+  input[type=text], input[type=number], select { width:100%; padding:8px; border:1px solid #ccc; border-radius:7px; font-size:16px; background:#fff; }
+  input[type=file] { font-size:13px; max-width:100%; }
+  .row { display:flex; gap:8px; align-items:end; }
+  .row > * { flex:1; }
+  button { padding:9px 11px; border:1px solid #bbb; background:#fff; border-radius:7px; font-size:14px; cursor:pointer; color:var(--ink); }
+  button.primary { background:var(--acc); border-color:var(--acc); color:#fff; font-weight:600; }
+  button.gold { background:var(--gold); border-color:#d9a300; font-weight:600; }
+  button:disabled { opacity:.45; cursor:default; }
+  .btns { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .chk { display:flex; gap:6px; align-items:center; font-size:13px; margin-top:6px; }
+  .chk input { margin:0; }
+  #stats { font-size:14px; line-height:1.5; }
+  #stats b.big { font-size:22px; }
+  .warn { color:#a33; font-size:13px; }
+  .ok { color:#2a7a2a; font-size:13px; }
+  .hint { font-size:12px; color:var(--mut); margin-top:6px; line-height:1.4; }
+  #results div { padding:6px; font-size:13px; cursor:pointer; border-bottom:1px solid #eee; }
+  #results div:hover { background:#f1ede5; }
+  #relList { max-height:180px; overflow:auto; margin-top:6px; }
+  #relList label { display:flex; gap:6px; align-items:flex-start; margin:3px 0; font-size:13px; }
+  #stageList { font-size:13px; margin:0; padding-left:18px; }
+  details summary { cursor:pointer; font-weight:600; font-size:13px; }
+  .pin { width:26px; height:26px; border-radius:50%; color:#fff; font:700 12px/26px sans-serif; text-align:center; border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.4); }
+  .km { background:#fff; border:1px solid #555; border-radius:9px; font:600 11px/16px sans-serif; padding:0 4px; white-space:nowrap; }
+  .seg { display:flex; gap:0; margin-top:4px; }
+  .seg label { flex:1; margin:0; text-align:center; border:1px solid #bbb; padding:7px 4px; font-size:13px; cursor:pointer; background:#fff; }
+  .seg label:first-child { border-radius:7px 0 0 7px; } .seg label:last-child { border-radius:0 7px 7px 0; border-left:none; }
+  .seg input { display:none; }
+  .seg input:checked + span { font-weight:700; color:var(--acc); }
+  @media (max-width:760px) {
+    #app { flex-direction:column-reverse; }
+    #panel { width:100%; height:55%; border-right:none; border-top:1px solid var(--line); padding-top:12px; }
+    #map { min-height:45%; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="panel">
+    <h1><svg class="shell" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#1f4e8c"/><g stroke="#f2b705" stroke-width="4" stroke-linecap="round" fill="none"><path d="M32 52 L10 22"/><path d="M32 52 L18 14"/><path d="M32 52 L32 11"/><path d="M32 52 L46 14"/><path d="M32 52 L54 22"/></g></svg>Pelgrimsmarathon</h1>
+    <div id="progress"></div>
+
+    <fieldset style="border-color:var(--acc)">
+      <legend>1 · Officiële pelgrimsroute</legend>
+      <div class="seg">
+        <label><input type="radio" name="src" value="osm" checked><span>Automatisch (OSM)</span></label>
+        <label><input type="radio" name="src" value="gpx"><span>Eigen GPX</span></label>
+      </div>
+      <div id="srcOsm">
+        <div class="hint">Haalt de bewegwijzerde pelgrimsroutes (Jacobswegen, Via Mosana, GR 654, Camino Francés …) uit OpenStreetMap op rond het startpunt. Werkt van Nederland tot Santiago; bij elke nieuwe etappe wordt automatisch het volgende stuk opgehaald.</div>
+        <div class="btns"><button id="osmBtn">Routes hier ophalen</button></div>
+        <div id="relList"></div>
+      </div>
+      <div id="srcGpx" style="display:none">
+        <div class="hint">Bijvoorbeeld <i>Alle Pelgrimsroutes Nederland</i> van het Genootschap van Sint Jacob (<a href="https://www.santiago.nl/downloads/" target="_blank" rel="noopener">santiago.nl/downloads</a>), of een officiële track voor België, Frankrijk of Spanje.</div>
+        <input type="file" id="refFile" accept=".gpx,application/gpx+xml,application/octet-stream" style="margin-top:6px">
+      </div>
+      <div id="refStatus" class="hint"></div>
+      <label class="chk"><input type="checkbox" id="followRef" checked> Officiële route volgen (aanbevolen)</label>
+      <label class="chk"><input type="checkbox" id="refReverse"> Looprichting omdraaien</label>
+    </fieldset>
+
+    <fieldset>
+      <legend>2 · Etappe</legend>
+      <div class="row">
+        <div><label>Nummer</label><input type="number" id="stageNo" min="1" value="1"></div>
+        <div><label>Afstand (km)</label><input type="number" id="target" step="0.001" value="42.195"></div>
+      </div>
+      <label>Naam (verschijnt in WorkOutDoors)</label>
+      <input type="text" id="stageName" value="">
+      <label class="chk"><input type="checkbox" id="cut" checked> Afknippen op deze afstand</label>
+    </fieldset>
+
+    <fieldset>
+      <legend>3 · Start en richting</legend>
+      <div class="row">
+        <input type="text" id="q" placeholder="Zoek plaats, bv. Namur of Vézelay">
+        <button id="qBtn" style="flex:0 0 auto">Zoek</button>
+      </div>
+      <div id="results"></div>
+      <div class="btns">
+        <button id="setStartMode">Start op kaart</button>
+        <button id="setEndMode">Richtpunt op kaart</button>
+        <button id="locBtn">Mijn locatie = start</button>
+      </div>
+      <div class="hint">
+        <b>S</b> = start (waar de vorige etappe eindigde). <b>R</b> = richtpunt: staat standaard op Santiago; zet het op een tussenstad
+        (bv. Namur, Vézelay) als je bij een splitsing een specifieke variant wilt. Klik op de kaart voor een tussenpunt (alleen bij eigen routering).
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Resultaat</legend>
+      <div id="stats">Nog geen route.</div>
+      <div class="btns"><button id="routeBtn">Opnieuw berekenen</button></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>4 · Naar WorkOutDoors</legend>
+      <label class="chk"><input type="checkbox" id="kmMarks"> Kilometerpunten meesturen (elke 5 km)</label>
+      <div class="btns">
+        <button id="shareBtn" class="primary" disabled>Delen / Open in WorkOutDoors</button>
+        <button id="gpxBtn" disabled>Download GPX</button>
+      </div>
+      <div class="hint">Op de iPhone: <i>Delen</i> → <i>WorkOutDoors</i>. Op de Mac: download en AirDrop naar je iPhone. De route synct daarna naar je Watch.</div>
+      <div class="btns"><button id="doneBtn" class="gold" disabled>Etappe gelopen → volgende etappe</button></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Gelopen etappes</legend>
+      <ol id="stageList"></ol>
+      <div class="btns"><button id="undoStage">Laatste etappe terugzetten</button></div>
+    </fieldset>
+
+    <fieldset>
+      <details>
+        <summary>Meer: eigen routering, vorige etappe, reset</summary>
+        <label>Eigen routering (als er geen officiële route is)</label>
+        <select id="profile">
+          <option value="brouter:hiking-mountain">Wandel-/looppaden (BRouter)</option>
+          <option value="brouter:trekking">Rustige wegen &amp; fietspaden (BRouter)</option>
+          <option value="brouter:shortest">Kortste weg (BRouter)</option>
+          <option value="osrm:foot">Voetganger (OSRM)</option>
+        </select>
+        <label>GPX van vorige etappe inladen (eindpunt = nieuwe start)</label>
+        <input type="file" id="prevFile" accept=".gpx,application/gpx+xml,application/octet-stream">
+        <div class="btns"><button id="resetBtn">Alles resetten</button></div>
+      </details>
+    </fieldset>
+    <div class="hint">Kaart- en routedata © OpenStreetMap-bijdragers (ODbL) · Overpass API · BRouter · OSRM · Nominatim.</div>
+  </div>
+  <div id="map"></div>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem('pm_' + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+    set(k, v) { try { if (v == null) localStorage.removeItem('pm_' + k); else localStorage.setItem('pm_' + k, JSON.stringify(v)); return true; } catch (e) { return false; } }
+  };
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c]));
+  const SANTIAGO = [42.8806, -8.5446];
+
+  // ---------- geometrie ----------
+  const R = 6371008.8, rad = d => d * Math.PI / 180;
+  function hav(a, b) {
+    const dLat = rad(b[0] - a[0]), dLon = rad(b[1] - a[1]);
+    const s = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a[0])) * Math.cos(rad(b[0])) * Math.sin(dLon / 2) ** 2;
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+  }
+  function cumul(pts) { const c = [0]; for (let i = 1; i < pts.length; i++) c.push(c[i - 1] + hav(pts[i - 1], pts[i])); return c; }
+  const len = pts => pts && pts.length > 1 ? cumul(pts)[pts.length - 1] : 0;
+  function lerp(a, b, t) {
+    const p = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+    if (a[2] != null && b[2] != null) p.push(a[2] + (b[2] - a[2]) * t);
+    return p;
+  }
+  function cutAt(pts, meters) {
+    const c = cumul(pts);
+    if (c[c.length - 1] <= meters) return pts.slice();
+    const out = [pts[0]];
+    for (let i = 1; i < pts.length; i++) {
+      if (c[i] >= meters) { out.push(lerp(pts[i - 1], pts[i], (meters - c[i - 1]) / (c[i] - c[i - 1] || 1))); break; }
+      out.push(pts[i]);
+    }
+    return out;
+  }
+  function pointAt(pts, c, meters) {
+    for (let i = 1; i < pts.length; i++) if (c[i] >= meters) return lerp(pts[i - 1], pts[i], (meters - c[i - 1]) / (c[i] - c[i - 1] || 1));
+    return pts[pts.length - 1];
+  }
+  function ascent(pts) {
+    let up = 0, last = null;
+    for (const p of pts) { if (p[2] == null) continue; if (last != null && p[2] > last) up += p[2] - last; last = p[2]; }
+    return up;
+  }
+  function thin(pts, minM = 4) {
+    const out = [pts[0]];
+    for (let i = 1; i < pts.length - 1; i++) if (hav(out[out.length - 1], pts[i]) >= minM) out.push(pts[i]);
+    out.push(pts[pts.length - 1]);
+    return out;
+  }
+  function bboxAround(p, km) {
+    const dLat = km / 111.2, dLon = km / (111.2 * Math.cos(rad(p[0])));
+    return [p[0] - dLat, p[1] - dLon, p[0] + dLat, p[1] + dLon]; // s,w,n,e
+  }
+  function distToBboxEdge(p, b) { // m, negatief = buiten
+    if (p[0] < b[0] || p[0] > b[2] || p[1] < b[1] || p[1] > b[3]) return -1;
+    return Math.min(hav(p, [b[0], p[1]]), hav(p, [b[2], p[1]]), hav(p, [p[0], b[1]]), hav(p, [p[0], b[3]]));
+  }
+
+  // ---------- officiële route volgen ----------
+  // refSegs: lijst losse lijnstukken (OSM-ways of GPX-tracksegmenten). We starten op het punt het dichtst bij S,
+  // lopen richting R en springen aan het eind van een stuk door naar een aansluitend stuk (bij splitsingen: de tak richting R).
+  const JOIN = 120;
+  let refSegs = null, endIndex = null;
+  const cellKey = (p, dx, dy) => `${Math.floor(p[0] / 0.002) + dx}_${Math.floor(p[1] / 0.003) + dy}`;
+  function buildIndex() {
+    endIndex = new Map();
+    refSegs.forEach((s, si) => {
+      for (const [pi, dj] of [[0, 1], [s.length - 1, -1]]) {
+        const k = cellKey(s[pi], 0, 0);
+        if (!endIndex.has(k)) endIndex.set(k, []);
+        endIndex.get(k).push({ sj: si, pj: pi, dj });
+      }
+    });
+  }
+  function connections(p) {
+    const out = [];
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+      const l = endIndex.get(cellKey(p, dx, dy)); if (!l) continue;
+      for (const c of l) if (hav(p, refSegs[c.sj][c.pj]) < JOIN) out.push(c);
+    }
+    return out;
+  }
+  function nearestOnRef(p) {
+    let best = { si: -1, pi: -1, d: Infinity };
+    refSegs.forEach((seg, si) => { for (let pi = 0; pi < seg.length; pi++) { const d = hav(p, seg[pi]); if (d < best.d) best = { si, pi, d }; } });
+    return best;
+  }
+  function walk(si, pi, dir, maxM, goal, lookahead) {
+    const out = [refSegs[si][pi]];
+    let acc = 0, guard = 0, stop = 'lengte';
+    const used = new Set([si]);
+    while (acc < maxM) {
+      if (guard++ > 20000) { stop = 'limiet'; break; }
+      const seg = refSegs[si], ni = pi + dir;
+      if (ni >= 0 && ni < seg.length) { acc += hav(seg[pi], seg[ni]); out.push(seg[ni]); pi = ni; continue; }
+      const end = seg[pi];
+      const cands = connections(end).filter(c => !used.has(c.sj));
+      if (!cands.length) { stop = 'einde'; break; }
+      let pick = cands[0];
+      if (cands.length > 1 && lookahead) {
+        let bd = Infinity;
+        for (const c of cands) {
+          const w = walk(c.sj, c.pj, c.dj, 5000, goal, false).pts;
+          const d = hav(w[w.length - 1], goal);
+          if (d < bd) { bd = d; pick = c; }
+        }
+      }
+      used.add(pick.sj); si = pick.sj; pi = pick.pj; dir = pick.dj;
+      const jp = refSegs[si][pi];
+      if (hav(end, jp) > 0.5) { acc += hav(end, jp); out.push(jp); }
+    }
+    return { pts: out, len: acc, stop };
+  }
+  function followReference(start, goal, target, cut, reverse) {
+    const n = nearestOnRef(start);
+    if (n.si < 0) throw new Error('Geen officiële route geladen.');
+    const f = walk(n.si, n.pi, 1, 6000, goal, true), b = walk(n.si, n.pi, -1, 6000, goal, true);
+    let dir = hav(f.pts[f.pts.length - 1], goal) <= hav(b.pts[b.pts.length - 1], goal) ? 1 : -1;
+    if (reverse) dir = -dir;
+    const w = walk(n.si, n.pi, dir, cut ? target + 200 : 300000, goal, true);
+    let pts = w.pts, reachedGoal = false;
+    if (!reverse) { // niet voorbij het richtpunt lopen
+      let bi = 0, bd = Infinity;
+      pts.forEach((p, i) => { const d = hav(p, goal); if (d < bd) { bd = d; bi = i; } });
+      if (bd < 400 && bi < pts.length - 1) { pts = pts.slice(0, bi + 1); reachedGoal = true; }
+    }
+    return { pts, offset: n.d, stop: w.stop, reachedGoal };
+  }
+
+  // ---------- kaart ----------
+  const map = L.map('map', { preferCanvas: true, zoomControl: true });
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap-bijdragers' }).addTo(map);
+
+  const defaults = { start: [51.0815, 5.8180], end: SANTIAGO, via: [] };
+  let state = store.get('points', defaults);
+  let routePts = null, fullPts = null, prevPts = store.get('prev', null);
+  let stages = store.get('stages', []);
+  let osm = store.get('osm', null);           // {bbox, rels:[{id,name}], relWays:{id:[wayKey]}, ways:{key:[[lat,lon]]}}
+  let hiddenRels = new Set(store.get('hiddenRels', []));
+  let gpxSegs = store.get('gpxSegs', null);
+  let clickMode = 'via', lastMode = '';
+
+  const icon = (txt, col) => L.divIcon({ className: '', html: `<div class="pin" style="background:${col}">${txt}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] });
+  const startM = L.marker(state.start, { draggable: true, icon: icon('S', '#2a7a2a') }).addTo(map);
+  const endM = L.marker(state.end, { draggable: true, icon: icon('R', '#b5562b') }).addTo(map);
+  let viaMs = [];
+  const refLine = L.polyline([], { color: '#1f4e8c', weight: 3, opacity: .45 }).addTo(map);
+  const prevLine = L.polyline([], { color: '#555', weight: 3, opacity: .6 }).addTo(map);
+  const fullLine = L.polyline([], { color: '#888', weight: 4, opacity: .6, dashArray: '6 6' }).addTo(map);
+  const routeLine = L.polyline([], { color: '#e0662b', weight: 5 }).addTo(map);
+  const kmLayer = L.layerGroup().addTo(map);
+  const finishM = L.circleMarker([0, 0], { radius: 8, color: '#000', fillColor: '#f2b705', fillOpacity: 1, weight: 2 });
+
+  const ll = m => { const p = m.getLatLng(); return [+p.lat.toFixed(6), +p.lng.toFixed(6)]; };
+  function save() { state = { start: ll(startM), end: ll(endM), via: viaMs.map(ll) }; store.set('points', state); }
+  function addVia(latlng, idx) {
+    const m = L.marker(latlng, { draggable: true, icon: icon('•', '#3b6fb6') }).addTo(map);
+    m.on('dragend', () => { save(); autoRoute(); });
+    m.on('click', () => { map.removeLayer(m); viaMs = viaMs.filter(x => x !== m); save(); autoRoute(); });
+    if (idx == null) viaMs.push(m); else viaMs.splice(idx, 0, m);
+  }
+  function bestInsertIndex(p) {
+    const seq = [ll(startM), ...viaMs.map(ll), ll(endM)];
+    let best = 0, bestCost = Infinity;
+    for (let i = 0; i < seq.length - 1; i++) {
+      const cost = hav(seq[i], p) + hav(p, seq[i + 1]) - hav(seq[i], seq[i + 1]);
+      if (cost < bestCost) { bestCost = cost; best = i; }
+    }
+    return best;
+  }
+  state.via.forEach(v => addVia(v));
+  [startM, endM].forEach(m => m.on('dragend', () => { save(); autoRoute(); }));
+
+  map.on('click', e => {
+    const p = [e.latlng.lat, e.latlng.lng];
+    if (clickMode === 'start') { startM.setLatLng(p); setMode('via'); }
+    else if (clickMode === 'end') { endM.setLatLng(p); setMode('via'); }
+    else if (followingRef()) return; // tussenpunten hebben geen zin bij het volgen van de officiële route
+    else addVia(p, bestInsertIndex(p));
+    save(); autoRoute();
+  });
+  function setMode(m) {
+    clickMode = m;
+    $('setStartMode').classList.toggle('primary', m === 'start');
+    $('setEndMode').classList.toggle('primary', m === 'end');
+    map.getContainer().style.cursor = m === 'via' ? '' : 'crosshair';
+  }
+  $('setStartMode').onclick = () => setMode(clickMode === 'start' ? 'via' : 'start');
+  $('setEndMode').onclick = () => setMode(clickMode === 'end' ? 'via' : 'end');
+  $('locBtn').onclick = () => {
+    if (!navigator.geolocation) return;
+    $('locBtn').textContent = 'Locatie zoeken…';
+    navigator.geolocation.getCurrentPosition(pos => {
+      $('locBtn').textContent = 'Mijn locatie = start';
+      const p = [pos.coords.latitude, pos.coords.longitude];
+      startM.setLatLng(p); map.setView(p, 13); save(); autoRoute();
+    }, () => { $('locBtn').textContent = 'Locatie niet beschikbaar'; setTimeout(() => $('locBtn').textContent = 'Mijn locatie = start', 2500); },
+    { enableHighAccuracy: true, timeout: 15000 });
+  };
+
+  // ---------- instellingen ----------
+  const textIds = ['stageNo', 'target', 'stageName', 'profile'], boolIds = ['cut', 'followRef', 'refReverse', 'kmMarks'];
+  const settings = store.get('settings', {});
+  for (const id of textIds) if (settings[id] != null) $(id).value = settings[id];
+  for (const id of boolIds) if (settings[id] != null) $(id).checked = settings[id];
+  const src = () => document.querySelector('input[name=src]:checked').value;
+  if (settings.src) document.querySelector(`input[name=src][value=${settings.src}]`).checked = true;
+  function saveSettings() {
+    const s = { src: src() };
+    for (const id of textIds) s[id] = $(id).value;
+    for (const id of boolIds) s[id] = $(id).checked;
+    store.set('settings', s);
+  }
+  const defaultName = () => `Pelgrimsmarathon etappe ${$('stageNo').value}`;
+  if (!$('stageName').value) $('stageName').value = defaultName();
+  $('stageNo').addEventListener('input', () => {
+    if (/^Pelgrimsmarathon etappe \d*$/.test($('stageName').value) || !$('stageName').value) $('stageName').value = defaultName();
+    saveSettings();
+  });
+  for (const id of ['target', 'profile', 'cut', 'followRef', 'refReverse']) $(id).addEventListener('change', () => { saveSettings(); autoRoute(); });
+  for (const id of ['stageName', 'kmMarks']) $(id).addEventListener('change', () => { saveSettings(); draw(); });
+  document.querySelectorAll('input[name=src]').forEach(r => r.addEventListener('change', () => { saveSettings(); applySource(); autoRoute(); }));
+
+  // ---------- bron: OSM of GPX ----------
+  const NAME_RE = 'Jacob|Jakob|Jacques|Jacquaire|Santiago|Compostel|Camino|Pelgrim|Pilger|Pèlerin|Pelerin|Peregrin|Via Mosana|Via Gallia|Via Lemovicensis|Via Podiensis|Via Turonensis|Via Tolosana|Via Campaniensis|Via Monastica|Via Arverna|Via Brabantica|Via Limburgensis';
+  const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter', 'https://maps.mail.ru/osm/tools/overpass/api/interpreter'];
+  const OSM_RADIUS_KM = 90, REFETCH_MARGIN = 55000;
+
+  async function fetchOSM(center) {
+    const b = bboxAround(center, OSM_RADIUS_KM), bb = b.map(v => v.toFixed(4)).join(',');
+    const rt = '["type"="route"]["route"~"^(hiking|foot|walking)$"]';
+    const q = `[out:json][timeout:120];(relation${rt}["name"~"${NAME_RE}",i](${bb});relation${rt}["pilgrimage"="yes"](${bb});relation${rt}["ref"~"^GR ?65",i](${bb}););out geom(${bb});`;
+    $('refStatus').innerHTML = 'Pelgrimsroutes ophalen uit OpenStreetMap… (kan even duren)';
+    let js = null, lastErr = null;
+    for (const url of OVERPASS) {
+      try {
+        const r = await fetch(url, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        js = await r.json(); break;
+      } catch (e) { lastErr = e; }
+    }
+    if (!js) throw new Error('Overpass niet bereikbaar (' + (lastErr && lastErr.message) + ')');
+    const rels = [], relWays = {}, ways = {};
+    for (const el of js.elements || []) {
+      if (el.type !== 'relation') continue;
+      const t = el.tags || {};
+      const keys = [];
+      for (const m of el.members || []) {
+        if (m.type !== 'way' || !m.geometry) continue;
+        let part = [], k = 0;
+        const flush = () => { if (part.length >= 2) { const key = `${m.ref}_${k++}`; if (!ways[key]) ways[key] = thin(part, 4).map(p => [+p[0].toFixed(6), +p[1].toFixed(6)]); keys.push(key); } part = []; };
+        for (const g of m.geometry) { if (g && isFinite(g.lat)) part.push([g.lat, g.lon]); else flush(); }
+        flush();
+      }
+      if (!keys.length) continue;
+      relWays[el.id] = [...new Set(keys)];
+      const name = t.name || t['name:nl'] || t.ref || ('Route ' + el.id);
+      rels.push({ id: el.id, name: name + (t.ref && t.name && !t.name.includes(t.ref) ? ` (${t.ref})` : ''), km: 0 });
+    }
+    rels.forEach(r => r.km = relWays[r.id].reduce((a, k) => a + len(ways[k]), 0) / 1000);
+    rels.sort((a, b) => b.km - a.km);
+    osm = { bbox: b, rels, relWays, ways, fetched: Date.now() };
+    if (!store.set('osm', osm)) store.set('osm', null);
+    applySource();
+  }
+  $('osmBtn').onclick = async () => { try { await fetchOSM(ll(startM)); autoRoute(); } catch (e) { $('refStatus').innerHTML = `<span class="warn">${esc(e.message)}</span>`; } };
+
+  function renderRelList() {
+    const box = $('relList'); box.innerHTML = '';
+    if (!osm) return;
+    if (!osm.rels.length) { box.innerHTML = '<div class="warn">Geen pelgrimsroutes gevonden in deze omgeving.</div>'; return; }
+    for (const r of osm.rels) {
+      const l = document.createElement('label');
+      l.innerHTML = `<input type="checkbox" ${hiddenRels.has(r.id) ? '' : 'checked'}> <span>${esc(r.name)} <span style="color:#888">· ${r.km.toFixed(0)} km hier</span></span>`;
+      l.querySelector('input').onchange = ev => {
+        if (ev.target.checked) hiddenRels.delete(r.id); else hiddenRels.add(r.id);
+        store.set('hiddenRels', [...hiddenRels]); applySource(); autoRoute();
+      };
+      box.appendChild(l);
+    }
+  }
+  function applySource() {
+    const s = src();
+    $('srcOsm').style.display = s === 'osm' ? '' : 'none';
+    $('srcGpx').style.display = s === 'gpx' ? '' : 'none';
+    if (s === 'osm') {
+      renderRelList();
+      if (osm) {
+        const keys = new Set();
+        for (const r of osm.rels) if (!hiddenRels.has(r.id)) for (const k of osm.relWays[r.id]) keys.add(k);
+        refSegs = [...keys].map(k => osm.ways[k]).filter(Boolean);
+      } else refSegs = null;
+    } else refSegs = gpxSegs;
+    if (refSegs && !refSegs.length) refSegs = null;
+    if (refSegs) buildIndex();
+    const km = refSegs ? refSegs.reduce((a, s) => a + len(s), 0) / 1000 : 0;
+    $('refStatus').innerHTML = refSegs
+      ? `<span class="ok">${km.toFixed(0)} km officiële route geladen${s === 'osm' ? ` (${osm.rels.filter(r => !hiddenRels.has(r.id)).length} route(s))` : ''}.</span>`
+      : (s === 'osm' ? 'Wordt automatisch opgehaald bij het berekenen.' : '<span class="warn">Nog geen GPX geladen.</span>');
+    drawRef();
+  }
+  function drawRef() { refLine.setLatLngs(refSegs ? refSegs.map(s => s.map(p => [p[0], p[1]])) : []); }
+  const followingRef = () => $('followRef').checked && (refSegs || src() === 'osm');
+
+  // GPX-bestanden
+  function parseGPXSegs(text) {
+    const doc = new DOMParser().parseFromString(text, 'application/xml');
+    const toPts = nodes => [...nodes].map(n => {
+      const ele = n.getElementsByTagName('ele')[0];
+      const p = [+n.getAttribute('lat'), +n.getAttribute('lon')];
+      if (ele && ele.textContent.trim() !== '' && isFinite(+ele.textContent)) p.push(+ele.textContent);
+      return p;
+    }).filter(p => isFinite(p[0]) && isFinite(p[1]));
+    const segs = [];
+    for (const s of doc.getElementsByTagName('trkseg')) segs.push(toPts(s.getElementsByTagName('trkpt')));
+    for (const r of doc.getElementsByTagName('rte')) segs.push(toPts(r.getElementsByTagName('rtept')));
+    return segs.filter(s => s.length >= 2);
+  }
+  function readFile(input, cb) {
+    const f = input.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      const segs = parseGPXSegs(r.result); input.value = '';
+      if (!segs.length) { $('stats').innerHTML = '<div class="warn">Geen trackpunten gevonden in dit GPX-bestand.</div>'; return; }
+      cb(segs);
+    };
+    r.readAsText(f);
+  }
+  $('refFile').onchange = () => readFile($('refFile'), segs => {
+    const s = ll(startM), near = p => hav(p, s) < 150000;
+    let kept = segs.filter(seg => seg.some((p, i) => i % 10 === 0 && near(p)));
+    if (!kept.length) kept = segs;
+    gpxSegs = kept.map(seg => thin(seg, 3).map(p => p[2] != null ? [+p[0].toFixed(6), +p[1].toFixed(6), +(+p[2]).toFixed(1)] : [+p[0].toFixed(6), +p[1].toFixed(6)]));
+    const stored = store.set('gpxSegs', gpxSegs);
+    applySource();
+    if (!stored) $('refStatus').innerHTML += '<br><span class="warn">Te groot om te onthouden; laad het bestand de volgende keer opnieuw.</span>';
+    autoRoute();
+  });
+  $('prevFile').onchange = () => readFile($('prevFile'), segs => {
+    const pts = segs.flat();
+    prevPts = thin(pts, 5); store.set('prev', prevPts);
+    const e = pts[pts.length - 1]; startM.setLatLng([e[0], e[1]]);
+    $('stageNo').value = parseInt($('stageNo').value || '1', 10) + 1; $('stageNo').dispatchEvent(new Event('input'));
+    save(); map.setView([e[0], e[1]], 11); autoRoute();
+  });
+
+  // ---------- zoeken ----------
+  async function search() {
+    const q = $('q').value.trim(); if (!q) return;
+    $('results').innerHTML = '<div>Zoeken…</div>';
+    try {
+      const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=6&countrycodes=nl,be,lu,de,fr,es,pt,ch&accept-language=nl&q=' + encodeURIComponent(q));
+      const js = await r.json();
+      $('results').innerHTML = '';
+      if (!js.length) { $('results').innerHTML = '<div>Niets gevonden.</div>'; return; }
+      js.forEach(x => {
+        const d = document.createElement('div');
+        d.textContent = x.display_name;
+        const p = [+x.lat, +x.lon];
+        d.onclick = () => {
+          $('results').innerHTML = '';
+          const choice = document.createElement('div');
+          choice.innerHTML = '<b>Gebruik als:</b> ';
+          [['Start', () => startM.setLatLng(p)], ['Richtpunt', () => endM.setLatLng(p)], ['Tussenpunt', () => addVia(p, bestInsertIndex(p))]].forEach(([t, f]) => {
+            const b = document.createElement('button'); b.textContent = t; b.style.marginLeft = '4px';
+            b.onclick = ev => { ev.stopPropagation(); f(); save(); $('results').innerHTML = ''; autoRoute(); };
+            choice.appendChild(b);
+          });
+          $('results').appendChild(choice);
+          map.setView(p, 12);
+        };
+        $('results').appendChild(d);
+      });
+    } catch (e) { $('results').innerHTML = '<div class="warn">Zoeken mislukt (geen internet?).</div>'; }
+  }
+  $('qBtn').onclick = search;
+  $('q').addEventListener('keydown', e => { if (e.key === 'Enter') search(); });
+
+  // ---------- eigen routering ----------
+  async function routeBRouter(seq, profile) {
+    const lonlats = seq.map(p => `${p[1].toFixed(6)},${p[0].toFixed(6)}`).join('|');
+    const r = await fetch(`https://brouter.de/brouter?lonlats=${encodeURIComponent(lonlats)}&profile=${profile}&alternativeidx=0&format=geojson`);
+    const txt = await r.text();
+    if (!r.ok) throw new Error(txt.slice(0, 200) || ('HTTP ' + r.status));
+    return JSON.parse(txt).features[0].geometry.coordinates.map(c => [c[1], c[0], c[2]]);
+  }
+  async function routeOSRM(seq) {
+    const coords = seq.map(p => `${p[1].toFixed(6)},${p[0].toFixed(6)}`).join(';');
+    const r = await fetch(`https://routing.openstreetmap.de/routed-foot/route/v1/foot/${coords}?overview=full&geometries=geojson`);
+    const js = await r.json();
+    if (js.code !== 'Ok') throw new Error(js.message || js.code);
+    return js.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+  }
+
+  // ---------- route berekenen ----------
+  let timer = null, seqNo = 0;
+  function autoRoute() { clearTimeout(timer); timer = setTimeout(doRoute, 350); }
+  $('routeBtn').onclick = doRoute;
+
+  async function doRoute() {
+    const my = ++seqNo;
+    const start = ll(startM), goal = ll(endM);
+    const target = parseFloat($('target').value) * 1000 || 42195;
+    const cut = $('cut').checked;
+    $('stats').innerHTML = 'Route berekenen…';
+    let note = '';
+    try {
+      let pts;
+      if ($('followRef').checked && src() === 'osm' && (!osm || distToBboxEdge(start, osm.bbox) < REFETCH_MARGIN)) {
+        await fetchOSM(start);
+        if (my !== seqNo) return;
+      }
+      if ($('followRef').checked && refSegs) {
+        const f = followReference(start, goal, target, cut, $('refReverse').checked);
+        pts = f.pts; lastMode = 'ref';
+        if (f.offset > 150) note += `<div class="warn">Startpunt ligt ${f.offset < 2000 ? Math.round(f.offset) + ' m' : (f.offset / 1000).toFixed(1) + ' km'} naast de officiële route; de etappe begint op het dichtstbijzijnde punt van de route.</div>`;
+        if (pts.length < 2) throw new Error('Kon de officiële route vanaf dit startpunt niet volgen.');
+        const l = len(pts);
+        if (cut && l < target - 50 && !f.reachedGoal && f.stop === 'einde')
+          note += `<div class="warn">De routedata stopt na ${(l / 1000).toFixed(1)} km (gat of einde van de route). Zet een tweede route aan in de lijst, laad een officiële GPX, of zet de etappe vanaf de gele stip verder met eigen routering.</div>`;
+      } else {
+        lastMode = 'own';
+        note += `<div class="warn"><b>Let op:</b> eigen routering, géén officiële pelgrimsroute.</div>`;
+        const seq = [start, ...viaMs.map(ll), goal];
+        if (hav(start, goal) > 150000) throw new Error('Richtpunt ligt te ver weg voor eigen routering; zet het richtpunt dichterbij of volg de officiële route.');
+        const [engine, prof] = $('profile').value.split(':');
+        try { pts = engine === 'osrm' ? await routeOSRM(seq) : await routeBRouter(seq, prof); }
+        catch (e) {
+          if (engine !== 'brouter') throw e;
+          pts = await routeOSRM(seq); note += `<div class="warn">BRouter gaf een fout; OSRM-voetgangersroute gebruikt.</div>`;
+        }
+      }
+      if (my !== seqNo) return;
+      fullPts = pts;
+      routePts = cut ? cutAt(pts, target) : pts.slice();
+      draw(note, true);
+    } catch (e) {
+      if (my !== seqNo) return;
+      routePts = null; draw();
+      $('stats').innerHTML = `<div class="warn">Route berekenen mislukt: ${esc(e.message)}</div><div class="hint">Controleer je internetverbinding of probeer het opnieuw.</div>`;
+    }
+  }
+
+  function draw(note = '', fit = false) {
+    prevLine.setLatLngs(prevPts ? prevPts.map(p => [p[0], p[1]]) : []);
+    kmLayer.clearLayers();
+    renderProgress();
+    const has = !!(routePts && routePts.length > 1);
+    $('gpxBtn').disabled = $('shareBtn').disabled = $('doneBtn').disabled = !has;
+    if (!has) { fullLine.setLatLngs([]); routeLine.setLatLngs([]); map.removeLayer(finishM); return; }
+    routeLine.setLatLngs(routePts.map(p => [p[0], p[1]]));
+    fullLine.setLatLngs(lastMode === 'own' && fullPts.length > routePts.length ? fullPts.map(p => [p[0], p[1]]) : []);
+    const c = cumul(routePts), total = c[c.length - 1];
+    const target = parseFloat($('target').value) * 1000 || 42195;
+    for (let k = 5000; k < total; k += 5000) {
+      const p = pointAt(routePts, c, k);
+      L.marker([p[0], p[1]], { interactive: false, icon: L.divIcon({ className: '', html: `<span class="km">${k / 1000}</span>`, iconSize: [24, 16], iconAnchor: [12, 8] }) }).addTo(kmLayer);
+    }
+    const end = routePts[routePts.length - 1];
+    finishM.setLatLng([end[0], end[1]]).addTo(map).bindTooltip('Finish etappe');
+    const up = ascent(routePts);
+    let msg = '';
+    if ($('cut').checked && total + 50 < target && !/routedata stopt/.test(note))
+      msg = `<div class="warn">${(total / 1000).toFixed(2)} km: het richtpunt ligt dichterbij dan de doelafstand. Leg het richtpunt verder weg (bv. terug op Santiago).</div>`;
+    $('stats').innerHTML = `<b class="big">${(total / 1000).toFixed(2)} km</b>${up ? ` · ↑ ${Math.round(up)} m` : ''}
+      ${lastMode === 'ref' ? '<span class="ok"> · officiële route</span>' : ''}
+      <br>Finish (gele stip): ${end[0].toFixed(5)}, ${end[1].toFixed(5)}` + msg + note;
+    if (fit) map.fitBounds(routeLine.getBounds(), { padding: [30, 30], maxZoom: 14 });
+  }
+
+  // ---------- voortgang ----------
+  function renderProgress() {
+    const done = stages.reduce((a, s) => a + s.km, 0);
+    const left = hav(ll(startM), SANTIAGO) / 1000;
+    $('progress').textContent = stages.length
+      ? `${stages.length} etappe(s) · ${done.toFixed(1)} km gelopen · nog ±${Math.round(left)} km hemelsbreed tot Santiago`
+      : `Nog ±${Math.round(left)} km hemelsbreed tot Santiago`;
+    $('stageList').innerHTML = stages.map(s => `<li>${esc(s.name)} · ${s.km.toFixed(1)} km · ${esc(s.date)}</li>`).join('') || '<li style="list-style:none;margin-left:-18px;color:#888">Nog geen etappes afgerond.</li>';
+    $('undoStage').disabled = !stages.length;
+  }
+  $('doneBtn').onclick = () => {
+    if (!routePts) return;
+    const end = routePts[routePts.length - 1];
+    stages.push({ no: +$('stageNo').value, name: $('stageName').value || defaultName(), km: len(routePts) / 1000,
+      start: routePts[0].slice(0, 2), end: end.slice(0, 2), date: new Date().toLocaleDateString('nl-NL'), mode: lastMode });
+    store.set('stages', stages);
+    prevPts = thin(routePts, 5); store.set('prev', prevPts);
+    startM.setLatLng([end[0], end[1]]);
+    viaMs.forEach(m => map.removeLayer(m)); viaMs = [];
+    $('stageNo').value = (+$('stageNo').value || stages.length) + 1; $('stageNo').dispatchEvent(new Event('input'));
+    save(); autoRoute();
+  };
+  $('undoStage').onclick = () => {
+    const s = stages.pop(); if (!s) return;
+    store.set('stages', stages);
+    startM.setLatLng(s.start); $('stageNo').value = s.no; $('stageNo').dispatchEvent(new Event('input'));
+    prevPts = null; store.set('prev', null); save(); autoRoute();
+  };
+
+  // ---------- GPX maken / delen ----------
+  function buildGPX() {
+    const name = $('stageName').value.trim() || defaultName();
+    const c = cumul(routePts), total = c[c.length - 1];
+    const s = routePts[0], e = routePts[routePts.length - 1];
+    let wpts = `<wpt lat="${s[0].toFixed(6)}" lon="${s[1].toFixed(6)}"><name>Start</name></wpt>\n`;
+    if ($('kmMarks').checked) for (let k = 5000; k < total; k += 5000) {
+      const p = pointAt(routePts, c, k);
+      wpts += `<wpt lat="${p[0].toFixed(6)}" lon="${p[1].toFixed(6)}"><name>${k / 1000} km</name></wpt>\n`;
+    }
+    wpts += `<wpt lat="${e[0].toFixed(6)}" lon="${e[1].toFixed(6)}"><name>Finish</name></wpt>\n`;
+    const trkpts = routePts.map(p => `<trkpt lat="${p[0].toFixed(6)}" lon="${p[1].toFixed(6)}">${p[2] != null ? `<ele>${(+p[2]).toFixed(1)}</ele>` : ''}</trkpt>`).join('\n');
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Pelgrimsmarathon" xmlns="http://www.topografix.com/GPX/1/1">
+<metadata><name>${esc(name)}</name><desc>${(total / 1000).toFixed(2)} km${lastMode === 'ref' ? ' – officiële pelgrimsroute' : ''}</desc><time>${new Date().toISOString()}</time></metadata>
+${wpts}<trk><name>${esc(name)}</name><type>running</type><trkseg>
+${trkpts}
+</trkseg></trk>
+</gpx>
+`;
+  }
+  const fileName = () => (($('stageName').value.trim() || defaultName()).replace(/[^\w\- ]+/g, '').replace(/\s+/g, '_')) + '.gpx';
+  function download() {
+    const blob = new Blob([buildGPX()], { type: 'application/gpx+xml' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = fileName();
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }
+  $('gpxBtn').onclick = download;
+  $('shareBtn').onclick = async () => {
+    const file = new File([buildGPX()], fileName(), { type: 'application/gpx+xml' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file] }); } catch (e) { /* geannuleerd */ }
+    } else download();
+  };
+
+  $('resetBtn').onclick = () => {
+    if ($('resetBtn').dataset.sure !== '1') { $('resetBtn').dataset.sure = '1'; $('resetBtn').textContent = 'Zeker? Klik nog een keer'; return; }
+    for (const k of ['points', 'prev', 'stages', 'osm', 'hiddenRels', 'gpxSegs', 'settings']) store.set(k, null);
+    location.reload();
+  };
+
+  // ---------- start ----------
+  setMode('via');
+  applySource();
+  map.setView(state.start, 11);
+  draw();
+  doRoute();
+})();
+</script>
+</body>
+</html>
