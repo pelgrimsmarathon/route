@@ -25,6 +25,11 @@
   .topbar { background:var(--acc); color:#fff; padding:calc(12px + env(safe-area-inset-top)) 16px 14px calc(16px + env(safe-area-inset-left)); }
   h1 { font-size:20px; font-weight:800; letter-spacing:-.2px; margin:0; display:flex; align-items:center; gap:10px; }
   h1 .shell { width:30px; height:30px; flex:0 0 auto; }
+  #refresh { margin-left:auto; width:36px; height:36px; border:none; border-radius:50%; background:rgba(255,255,255,.14); color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0; flex:0 0 auto; }
+  #refresh:active { background:rgba(255,255,255,.28); }
+  #refresh svg { width:20px; height:20px; }
+  #refresh.spin svg { animation:spin .8s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
   .kpis { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:12px; }
   .kpis div { font-size:11px; text-transform:uppercase; letter-spacing:.4px; opacity:.85; }
   .kpis b { display:block; font-size:22px; font-weight:800; letter-spacing:-.3px; text-transform:none; opacity:1; color:var(--gold); line-height:1.15; }
@@ -104,7 +109,7 @@
 <div id="app">
   <div id="panel">
     <div class="topbar">
-      <h1><svg class="shell" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#163a6a"/><g stroke="#f5b800" stroke-width="4.5" stroke-linecap="round" fill="none"><path d="M32 52 L10 22"/><path d="M32 52 L18 14"/><path d="M32 52 L32 11"/><path d="M32 52 L46 14"/><path d="M32 52 L54 22"/></g></svg>Pelgrimsmarathon</h1>
+      <h1><svg class="shell" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#163a6a"/><g stroke="#f5b800" stroke-width="4.5" stroke-linecap="round" fill="none"><path d="M32 52 L10 22"/><path d="M32 52 L18 14"/><path d="M32 52 L32 11"/><path d="M32 52 L46 14"/><path d="M32 52 L54 22"/></g></svg>Pelgrimsmarathon<button id="refresh" type="button" title="Vernieuwen" aria-label="Vernieuwen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button></h1>
       <div class="kpis" id="progress"></div>
     </div>
     <div class="wrap">
@@ -750,9 +755,14 @@
     }
     return pts;
   }
+  // Vernieuwen: herlaadt app én etappes zonder cache (handig in de iOS-app, die geen herlaadknop heeft)
+  $('refresh').onclick = () => {
+    $('refresh').classList.add('spin');
+    location.replace(location.pathname + '?v=' + Date.now() + location.hash);
+  };
   async function loadWalked() {
     try {
-      const r = await fetch('etappes/etappes.json', { cache: 'no-cache' });
+      const r = await fetch('etappes/etappes.json?t=' + Date.now(), { cache: 'no-store' });
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const js = await r.json();
       walked = (js.etappes || []).slice().sort((a, b) => (a.nr || 0) - (b.nr || 0));
