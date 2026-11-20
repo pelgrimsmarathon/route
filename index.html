@@ -30,6 +30,10 @@
   #refresh svg { width:20px; height:20px; }
   #refresh.spin svg { animation:spin .8s linear infinite; }
   @keyframes spin { to { transform:rotate(360deg); } }
+  .startline { display:flex; gap:10px; align-items:center; margin:2px 0 4px; }
+  .startline .pin { flex:0 0 auto; background:var(--acc); }
+  .startline b { font-size:16px; }
+  .startline .hint { margin-top:1px; }
   .kpis { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:12px; }
   .kpis div { font-size:11px; text-transform:uppercase; letter-spacing:.4px; opacity:.85; }
   .kpis b { display:block; font-size:22px; font-weight:800; letter-spacing:-.3px; text-transform:none; opacity:1; color:var(--gold); line-height:1.15; }
@@ -115,96 +119,68 @@
     <div class="wrap">
 
     <fieldset>
-      <legend>1 · Officiële pelgrimsroute</legend>
-      <div class="seg">
-        <label><input type="radio" name="src" value="osm" checked><span>Automatisch (OSM)</span></label>
-        <label><input type="radio" name="src" value="gpx"><span>Eigen GPX</span></label>
-      </div>
-      <div id="srcOsm">
-        <div class="hint">Haalt de bewegwijzerde pelgrimsroutes (Jacobswegen, Via Mosana, GR 654, Camino Francés …) uit OpenStreetMap op rond het startpunt. Werkt van Nederland tot Santiago; bij elke nieuwe etappe wordt automatisch het volgende stuk opgehaald.</div>
-        <div class="btns"><button id="osmBtn">Routes hier ophalen</button></div>
-        <div id="relList"></div>
-      </div>
-      <div id="srcGpx" style="display:none">
-        <div class="hint">Bijvoorbeeld <i>Alle Pelgrimsroutes Nederland</i> van het Genootschap van Sint Jacob (<a href="https://www.santiago.nl/downloads/" target="_blank" rel="noopener">santiago.nl/downloads</a>), of een officiële track voor België, Frankrijk of Spanje.</div>
-        <input type="file" id="refFile" accept=".gpx,application/gpx+xml,application/octet-stream" style="margin-top:6px">
-      </div>
-      <div id="refStatus" class="hint"></div>
-      <label class="chk"><input type="checkbox" id="followRef" checked> Officiële route volgen (aanbevolen)</label>
-      <label class="chk"><input type="checkbox" id="refReverse"> Looprichting omdraaien</label>
-    </fieldset>
-
-    <fieldset>
-      <legend>2 · Etappe</legend>
+      <legend>Volgende etappe</legend>
+      <div class="startline"><div class="pin">S</div><div><b id="startName">Start</b><div class="hint" id="startInfo">Finish van de laatst gelopen etappe</div></div></div>
+      <label>Finish</label>
       <div class="row">
-        <div><label>Nummer</label><input type="number" id="stageNo" min="1" value="1"></div>
-        <div><label>Afstand (km)</label><input type="number" id="target" step="0.001" value="42.195"></div>
-      </div>
-      <label>Naam (verschijnt in WorkOutDoors)</label>
-      <input type="text" id="stageName" value="">
-      <label>Einde van de etappe</label>
-      <select id="endMode">
-        <option value="goal">Eindigen bij richtpunt (minimaal deze afstand)</option>
-        <option value="cut">Precies deze afstand (afknippen)</option>
-      </select>
-      <div class="hint">Bij <i>eindigen bij richtpunt</i> mag de etappe langer zijn. Is de route tot het richtpunt korter, dan loopt de route voorbij het richtpunt een stukje door en weer terug, zodat je toch minstens de afstand haalt.</div>
-    </fieldset>
-
-    <fieldset>
-      <legend>3 · Start en richting</legend>
-      <div class="row">
-        <input type="text" id="q" placeholder="Zoek plaats, bv. Namur of Vézelay">
+        <input type="text" id="q" placeholder="Bv. Maastricht of Visé">
         <button id="qBtn" style="flex:0 0 auto">Zoek</button>
       </div>
       <div id="results"></div>
-      <div class="btns">
-        <button id="setStartMode">Start op kaart</button>
-        <button id="setEndMode">Richtpunt op kaart</button>
-        <button id="locBtn">Mijn locatie = start</button>
-      </div>
-      <div class="hint">
-        <b>S</b> = start (waar de vorige etappe eindigde). <b>R</b> = richtpunt: waar de etappe moet eindigen (bv. Maastricht), of bij <i>precies deze afstand</i>
-        de richting (standaard Santiago; zet het op een tussenstad als je bij een splitsing een specifieke variant wilt). Klik op de kaart voor een tussenpunt (alleen bij eigen routering).
-      </div>
+      <div class="hint">Of tik op de kaart of versleep de <b>R</b>. Zonder finish wordt het precies de minimale afstand langs de pelgrimsroute; met finish loopt de route door tot de finish (langer mag, korter niet).</div>
+      <label>Minimale afstand (km)</label>
+      <input type="number" id="target" step="0.001" value="42.195">
+      <div class="btns"><button id="resetBtn">↺ Opnieuw beginnen</button></div>
     </fieldset>
 
     <fieldset>
-      <legend>Resultaat</legend>
+      <legend>Route</legend>
       <div id="stats">Nog geen route.</div>
-      <div class="btns"><button id="routeBtn">Opnieuw berekenen</button></div>
-    </fieldset>
-
-    <fieldset>
-      <legend>4 · Naar WorkOutDoors</legend>
-      <label class="chk"><input type="checkbox" id="kmMarks"> Kilometerpunten meesturen (elke 5 km)</label>
       <div class="btns">
         <button id="shareBtn" class="primary" disabled>Delen / Open in WorkOutDoors</button>
         <button id="gpxBtn" disabled>Download GPX</button>
       </div>
       <div class="hint">Op de iPhone: <i>Delen</i> → <i>WorkOutDoors</i>. Op de Mac: download en AirDrop naar je iPhone. De route synct daarna naar je Watch.</div>
-      <div class="btns"><button id="doneBtn" class="gold" disabled>Klaar → finish wordt nieuwe start</button></div>
     </fieldset>
 
     <fieldset>
       <legend>Gelopen etappes</legend>
       <div id="walkList" class="hint">Laden…</div>
-      <div class="btns"><button id="nextFromWalked" disabled>Start bij finish van laatste gelopen etappe</button></div>
       <div class="hint">Gelopen etappes (GPX met tijden), foto's, video-links en verslagen worden voor jullie samen bijgehouden. Stuur ze naar Claude in het project <i>Pelgrimsmarathon</i>, dan komen ze hier te staan.</div>
     </fieldset>
 
     <fieldset>
       <details>
-        <summary>Meer: eigen routering, vorige etappe, reset</summary>
-        <label>Eigen routering (als er geen officiële route is)</label>
+        <summary>Instellingen</summary>
+        <div class="row">
+          <div><label>Etappenummer</label><input type="number" id="stageNo" min="1" value="1"></div>
+          <div style="flex:2"><label>Naam (in WorkOutDoors)</label><input type="text" id="stageName" value=""></div>
+        </div>
+        <label class="chk"><input type="checkbox" id="kmMarks"> Kilometerpunten meesturen (elke 5 km)</label>
+        <label>Pelgrimsroute</label>
+        <div class="seg">
+          <label><input type="radio" name="src" value="osm" checked><span>Automatisch (OSM)</span></label>
+          <label><input type="radio" name="src" value="gpx"><span>Eigen GPX</span></label>
+        </div>
+        <div id="srcOsm">
+          <div class="hint">Haalt de bewegwijzerde pelgrimsroutes (Jacobswegen, Via Mosana, GR 654, Camino Francés …) uit OpenStreetMap op rond het startpunt.</div>
+          <div class="btns"><button id="osmBtn">Routes hier opnieuw ophalen</button></div>
+          <div id="relList"></div>
+        </div>
+        <div id="srcGpx" style="display:none">
+          <div class="hint">Bijvoorbeeld <i>Alle Pelgrimsroutes Nederland</i> van het Genootschap van Sint Jacob (<a href="https://www.santiago.nl/downloads/" target="_blank" rel="noopener">santiago.nl/downloads</a>).</div>
+          <input type="file" id="refFile" accept=".gpx,application/gpx+xml,application/octet-stream" style="margin-top:6px">
+        </div>
+        <div id="refStatus" class="hint"></div>
+        <label class="chk"><input type="checkbox" id="followRef" checked> Officiële route volgen (aanbevolen)</label>
+        <label class="chk"><input type="checkbox" id="refReverse"> Looprichting omdraaien</label>
+        <label>Eigen routering (alleen als er geen officiële route is)</label>
         <select id="profile">
           <option value="brouter:hiking-mountain">Wandel-/looppaden (BRouter)</option>
           <option value="brouter:trekking">Rustige wegen &amp; fietspaden (BRouter)</option>
           <option value="brouter:shortest">Kortste weg (BRouter)</option>
           <option value="osrm:foot">Voetganger (OSRM)</option>
         </select>
-        <label>GPX van vorige etappe inladen (eindpunt = nieuwe start)</label>
-        <input type="file" id="prevFile" accept=".gpx,application/gpx+xml,application/octet-stream">
-        <div class="btns"><button id="resetBtn">Alles resetten</button></div>
       </details>
     </fieldset>
     <div class="hint" style="padding:0 4px">Kaart- en routedata © OpenStreetMap-bijdragers (ODbL) · Overpass API · BRouter · OSRM · Nominatim.</div>
@@ -362,10 +338,10 @@
   let osm = store.get('osm', null);           // {bbox, rels:[{id,name}], relWays:{id:[wayKey]}, ways:{key:[[lat,lon]]}}
   let hiddenRels = new Set(store.get('hiddenRels', []));
   let gpxSegs = store.get('gpxSegs', null);
-  let clickMode = 'via', lastMode = '';
+  let lastMode = '';
 
   const icon = (txt, col) => L.divIcon({ className: '', html: `<div class="pin" style="background:${col}">${txt}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] });
-  const startM = L.marker(state.start, { draggable: true, icon: icon('S', '#1f4e8c') }).addTo(map);
+  const startM = L.marker(state.start, { draggable: false, icon: icon('S', '#1f4e8c') }).addTo(map);
   const endM = L.marker(state.end, { draggable: true, icon: icon('R', '#242428') }).addTo(map);
   let viaMs = [];
   const refLine = L.polyline([], { color: '#5b8bd0', weight: 3, opacity: .45, dashArray: '2 6' }).addTo(map);
@@ -377,53 +353,14 @@
 
   const ll = m => { const p = m.getLatLng(); return [+p.lat.toFixed(6), +p.lng.toFixed(6)]; };
   function save() { state = { start: ll(startM), end: ll(endM), via: viaMs.map(ll) }; store.set('points', state); }
-  function addVia(latlng, idx) {
-    const m = L.marker(latlng, { draggable: true, icon: icon('•', '#5b8bd0') }).addTo(map);
-    m.on('dragend', () => { save(); autoRoute(); });
-    m.on('click', () => { map.removeLayer(m); viaMs = viaMs.filter(x => x !== m); save(); autoRoute(); });
-    if (idx == null) viaMs.push(m); else viaMs.splice(idx, 0, m);
-  }
-  function bestInsertIndex(p) {
-    const seq = [ll(startM), ...viaMs.map(ll), ll(endM)];
-    let best = 0, bestCost = Infinity;
-    for (let i = 0; i < seq.length - 1; i++) {
-      const cost = hav(seq[i], p) + hav(p, seq[i + 1]) - hav(seq[i], seq[i + 1]);
-      if (cost < bestCost) { bestCost = cost; best = i; }
-    }
-    return best;
-  }
-  state.via.forEach(v => addVia(v));
-  [startM, endM].forEach(m => m.on('dragend', () => { save(); autoRoute(); }));
+  endM.on('dragend', () => { save(); autoRoute(); });
 
-  map.on('click', e => {
-    const p = [e.latlng.lat, e.latlng.lng];
-    if (clickMode === 'start') { startM.setLatLng(p); setMode('via'); }
-    else if (clickMode === 'end') { endM.setLatLng(p); setMode('via'); }
-    else if (followingRef()) return; // tussenpunten hebben geen zin bij het volgen van de officiële route
-    else addVia(p, bestInsertIndex(p));
-    save(); autoRoute();
-  });
-  function setMode(m) {
-    clickMode = m;
-    $('setStartMode').classList.toggle('primary', m === 'start');
-    $('setEndMode').classList.toggle('primary', m === 'end');
-    map.getContainer().style.cursor = m === 'via' ? '' : 'crosshair';
-  }
-  $('setStartMode').onclick = () => setMode(clickMode === 'start' ? 'via' : 'start');
-  $('setEndMode').onclick = () => setMode(clickMode === 'end' ? 'via' : 'end');
-  $('locBtn').onclick = () => {
-    if (!navigator.geolocation) return;
-    $('locBtn').textContent = 'Locatie zoeken…';
-    navigator.geolocation.getCurrentPosition(pos => {
-      $('locBtn').textContent = 'Mijn locatie = start';
-      const p = [pos.coords.latitude, pos.coords.longitude];
-      startM.setLatLng(p); map.setView(p, 13); save(); autoRoute();
-    }, () => { $('locBtn').textContent = 'Locatie niet beschikbaar'; setTimeout(() => $('locBtn').textContent = 'Mijn locatie = start', 2500); },
-    { enableHighAccuracy: true, timeout: 15000 });
-  };
+  // Tik op de kaart = finish daar leggen. De start ligt vast op de finish van de laatst gelopen etappe.
+  map.on('click', e => { endM.setLatLng([e.latlng.lat, e.latlng.lng]); save(); autoRoute(); });
+  const hasFinish = () => hav(ll(startM), ll(endM)) < 150000; // richtpunt ver weg (Santiago) = geen finish gekozen
 
   // ---------- instellingen ----------
-  const textIds = ['stageNo', 'target', 'stageName', 'profile', 'endMode'], boolIds = ['followRef', 'refReverse', 'kmMarks'];
+  const textIds = ['stageNo', 'target', 'stageName', 'profile'], boolIds = ['followRef', 'refReverse', 'kmMarks'];
   const settings = store.get('settings', {});
   for (const id of textIds) if (settings[id] != null) $(id).value = settings[id];
   for (const id of boolIds) if (settings[id] != null) $(id).checked = settings[id];
@@ -441,7 +378,7 @@
     if (/^Pelgrimsmarathon etappe \d*$/.test($('stageName').value) || !$('stageName').value) $('stageName').value = defaultName();
     saveSettings();
   });
-  for (const id of ['target', 'profile', 'endMode', 'followRef', 'refReverse']) $(id).addEventListener('change', () => { saveSettings(); autoRoute(); });
+  for (const id of ['target', 'profile', 'followRef', 'refReverse']) $(id).addEventListener('change', () => { saveSettings(); autoRoute(); });
   for (const id of ['stageName', 'kmMarks']) $(id).addEventListener('change', () => { saveSettings(); draw(); });
   document.querySelectorAll('input[name=src]').forEach(r => r.addEventListener('change', () => { saveSettings(); applySource(); autoRoute(); }));
 
@@ -527,7 +464,6 @@
     drawRef();
   }
   function drawRef() { refLine.setLatLngs(refSegs ? refSegs.map(s => s.map(p => [p[0], p[1]])) : []); }
-  const followingRef = () => $('followRef').checked && (refSegs || src() === 'osm');
 
   // GPX-bestanden
   function parseGPXSegs(text) {
@@ -563,13 +499,6 @@
     if (!stored) $('refStatus').innerHTML += '<br><span class="warn">Te groot om te onthouden; laad het bestand de volgende keer opnieuw.</span>';
     autoRoute();
   });
-  $('prevFile').onchange = () => readFile($('prevFile'), segs => {
-    const pts = segs.flat();
-    prevPts = thin(pts, 5); store.set('prev', prevPts);
-    const e = pts[pts.length - 1]; startM.setLatLng([e[0], e[1]]);
-    $('stageNo').value = parseInt($('stageNo').value || '1', 10) + 1; $('stageNo').dispatchEvent(new Event('input'));
-    save(); map.setView([e[0], e[1]], 11); autoRoute();
-  });
 
   // ---------- zoeken ----------
   async function search() {
@@ -586,15 +515,8 @@
         const p = [+x.lat, +x.lon];
         d.onclick = () => {
           $('results').innerHTML = '';
-          const choice = document.createElement('div');
-          choice.innerHTML = '<b>Gebruik als:</b> ';
-          [['Start', () => startM.setLatLng(p)], ['Richtpunt', () => endM.setLatLng(p)], ['Tussenpunt', () => addVia(p, bestInsertIndex(p))]].forEach(([t, f]) => {
-            const b = document.createElement('button'); b.textContent = t; b.style.marginLeft = '4px';
-            b.onclick = ev => { ev.stopPropagation(); f(); save(); $('results').innerHTML = ''; autoRoute(); };
-            choice.appendChild(b);
-          });
-          $('results').appendChild(choice);
-          map.setView(p, 12);
+          $('q').value = x.display_name.split(',')[0];
+          endM.setLatLng(p); save(); autoRoute();
         };
         $('results').appendChild(d);
       });
@@ -622,15 +544,14 @@
   // ---------- route berekenen ----------
   let timer = null, seqNo = 0;
   function autoRoute() { clearTimeout(timer); timer = setTimeout(doRoute, 350); }
-  $('routeBtn').onclick = doRoute;
 
   async function doRoute() {
     const my = ++seqNo;
     const start = ll(startM), goal = ll(endM);
     const target = parseFloat($('target').value) * 1000 || 42195;
-    const toGoal = $('endMode').value === 'goal' && hav(start, goal) < 150000;
+    const toGoal = hasFinish();
     const cut = !toGoal;
-    let note = $('endMode').value === 'goal' && !toGoal ? `<div class="hint">Richtpunt ligt ver weg; etappe afgeknipt op de doelafstand. Zet het richtpunt op de plaats waar je wilt eindigen.</div>` : '';
+    let note = !toGoal ? `<div class="hint">Nog geen finish gekozen: de etappe stopt na ${(target / 1000).toFixed(1)} km langs de route. Zoek een plaats of tik op de kaart om de finish te kiezen.</div>` : '';
     $('stats').innerHTML = 'Route berekenen…';
     try {
       let pts;
@@ -694,7 +615,7 @@
     kmLayer.clearLayers();
     renderProgress();
     const has = !!(routePts && routePts.length > 1);
-    $('gpxBtn').disabled = $('shareBtn').disabled = $('doneBtn').disabled = !has;
+    $('gpxBtn').disabled = $('shareBtn').disabled = !has;
     if (!has) { fullLine.setLatLngs([]); routeLine.setLatLngs([]); map.removeLayer(finishM); return; }
     routeLine.setLatLngs(routePts.map(p => [p[0], p[1]]));
     fullLine.setLatLngs(lastMode === 'own' && fullPts.length > routePts.length ? fullPts.map(p => [p[0], p[1]]) : []);
@@ -708,8 +629,6 @@
     finishM.setLatLng([end[0], end[1]]).addTo(map).bindTooltip('Finish etappe');
     const up = ascent(routePts);
     let msg = '';
-    if ($('endMode').value === 'cut' && total + 50 < target && !/routedata stopt/.test(note))
-      msg = `<div class="warn">${(total / 1000).toFixed(2)} km: het richtpunt ligt dichterbij dan de doelafstand. Leg het richtpunt verder weg (bv. terug op Santiago) of kies <i>eindigen bij richtpunt</i>.</div>`;
     $('stats').innerHTML = `<div class="tiles"><div>Afstand<b>${(total / 1000).toFixed(2)} km</b></div><div>Stijgen<b>${up ? Math.round(up) + ' m' : '–'}</b></div><div>Route<b style="font-size:15px;padding-top:5px">${lastMode === 'ref' ? 'Officieel' : 'Eigen'}</b></div></div>
       <div class="hint" style="margin-top:0">Finish (gele stip): ${end[0].toFixed(5)}, ${end[1].toFixed(5)}</div>` + msg + note;
     if (fit) map.fitBounds(routeLine.getBounds(), { padding: [30, 30], maxZoom: 14 });
@@ -780,26 +699,27 @@
       }));
     } catch (e) { walked = []; }
     renderWalked();
-    // Startpunt = finish van de laatst gelopen etappe. Wordt automatisch gezet zodra er een nieuwe etappe in het logboek staat;
-    // daarna kun je de start nog zelf verslepen (of met "Klaar" vooruit plannen) tot er weer een nieuwe gelopen etappe bijkomt.
+    // Startpunt = altijd de finish van de laatst gelopen etappe.
     const l = [...walked].reverse().find(w => w.track && w.track.pts.length);
     if (l) {
+      const e = l.track.pts[l.track.pts.length - 1];
+      startM.setLatLng([e[0], e[1]]);
+      $('startName').textContent = l.naar || l.titel || 'Finish vorige etappe';
+      $('startInfo').textContent = `Finish van etappe ${l.nr || walked.length}${l.datum ? ' (' + fmtDate(l.datum) + ')' : ''}`;
       const key = `${l.nr}|${l.datum}|${l.titel}`;
-      if (store.get('startFrom', null) !== key) { startFromWalked(l); store.set('startFrom', key); }
+      if (store.get('startFrom', null) !== key) { // nieuwe gelopen etappe: nummer ophogen en finish wissen
+        $('stageNo').value = (l.nr || walked.length) + 1; $('stageNo').dispatchEvent(new Event('input'));
+        endM.setLatLng(SANTIAGO); $('q').value = '';
+        store.set('startFrom', key);
+      }
+      save(); map.setView([e[0], e[1]], 11);
     }
-  }
-  function startFromWalked(l) {
-    const e = l.track.pts[l.track.pts.length - 1];
-    startM.setLatLng([e[0], e[1]]);
-    viaMs.forEach(m => map.removeLayer(m)); viaMs = [];
-    prevPts = null; store.set('prev', null);
-    $('stageNo').value = (l.nr || walked.length) + 1; $('stageNo').dispatchEvent(new Event('input'));
-    save(); map.setView([e[0], e[1]], 12); autoRoute();
+    autoRoute();
   }
   function renderWalked() {
     walkLayer.clearLayers();
     const box = $('walkList');
-    if (!walked.length) { box.innerHTML = 'Nog geen gelopen etappes opgeslagen.'; $('nextFromWalked').disabled = true; renderProgress(); return; }
+    if (!walked.length) { box.innerHTML = 'Nog geen gelopen etappes opgeslagen.'; renderProgress(); return; }
     box.innerHTML = '';
     box.className = '';
     walked.forEach((w, i) => {
@@ -813,14 +733,13 @@
       box.appendChild(d);
       if (w.track && w.track.pts.length > 1) {
         const ll2 = w.track.pts.map(p => [p[0], p[1]]);
-        L.polyline(ll2, { color: '#5c4500', weight: 7, opacity: .55 }).addTo(walkLayer);
-        const line = L.polyline(ll2, { color: '#f5b800', weight: 4, opacity: 1 }).addTo(walkLayer);
+        L.polyline(ll2, { color: '#5c4500', weight: 7, opacity: .55, interactive: false }).addTo(walkLayer);
+        const line = L.polyline(ll2, { color: '#f5b800', weight: 4, opacity: 1, bubblingMouseEvents: false }).addTo(walkLayer);
         line.on('click', () => openDetail(w));
         const e = w.track.pts[w.track.pts.length - 1];
         L.marker([e[0], e[1]], { icon: L.divIcon({ className: '', html: `<div class="pin" style="background:#f5b800;color:#1d1d1f;width:22px;height:22px;line-height:20px;font-size:11px">${esc(w.nr || i + 1)}</div>`, iconSize: [22, 22], iconAnchor: [11, 11] }) }).on('click', () => openDetail(w)).addTo(walkLayer);
       }
     });
-    $('nextFromWalked').disabled = !walked.some(w => w.track && w.track.pts.length);
     renderProgress();
   }
   const ytEmbed = u => { const m = String(u).match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([\w-]{11})/); return m ? `https://www.youtube-nocookie.com/embed/${m[1]}` : null; };
@@ -854,23 +773,11 @@
   }
   $('detailClose').onclick = () => $('detail').classList.remove('open');
   $('detail').onclick = e => { if (e.target === $('detail')) $('detail').classList.remove('open'); };
-  $('nextFromWalked').onclick = () => {
-    const l = [...walked].reverse().find(w => w.track && w.track.pts.length); if (l) startFromWalked(l);
-  };
   function renderProgress() {
     const done = walked.reduce((a, w) => a + (w.km || (w.track ? w.track.dist / 1000 : 0)), 0);
     const left = hav(ll(startM), SANTIAGO) / 1000;
     $('progress').innerHTML = `<div><b>${done.toFixed(0)} km</b>gelopen</div><div><b>${walked.length}</b>etappes</div><div><b>±${Math.round(left)}</b>km tot Santiago</div>`;
   }
-  $('doneBtn').onclick = () => {
-    if (!routePts) return;
-    const end = routePts[routePts.length - 1];
-    prevPts = thin(routePts, 5); store.set('prev', prevPts);
-    startM.setLatLng([end[0], end[1]]);
-    viaMs.forEach(m => map.removeLayer(m)); viaMs = [];
-    $('stageNo').value = (+$('stageNo').value || 1) + 1; $('stageNo').dispatchEvent(new Event('input'));
-    save(); autoRoute();
-  };
 
   // ---------- GPX maken / delen ----------
   function buildGPX() {
@@ -909,18 +816,17 @@ ${trkpts}
     } else download();
   };
 
+  // Opnieuw beginnen: finish wissen, afstand terug naar een marathon, start blijft de finish van de laatst gelopen etappe.
   $('resetBtn').onclick = () => {
-    if ($('resetBtn').dataset.sure !== '1') { $('resetBtn').dataset.sure = '1'; $('resetBtn').textContent = 'Zeker? Klik nog een keer'; return; }
-    for (const k of ['points', 'prev', 'osm', 'hiddenRels', 'gpxSegs', 'settings']) store.set(k, null);
-    location.reload();
+    endM.setLatLng(SANTIAGO); $('q').value = ''; $('results').innerHTML = '';
+    $('target').value = '42.195'; saveSettings(); save();
+    map.setView(ll(startM), 11); doRoute();
   };
 
   // ---------- start ----------
-  setMode('via');
   applySource();
   map.setView(state.start, 11);
   draw();
-  doRoute();
   loadWalked();
 })();
 </script>
