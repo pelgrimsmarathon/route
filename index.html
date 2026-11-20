@@ -780,7 +780,21 @@
       }));
     } catch (e) { walked = []; }
     renderWalked();
-    if (!store.get('points', null) && walked.length) { const l = walked[walked.length - 1]; if (l.track && l.track.pts.length) { startM.setLatLng(l.track.pts[l.track.pts.length - 1].slice(0, 2)); $('stageNo').value = (l.nr || walked.length) + 1; $('stageNo').dispatchEvent(new Event('input')); save(); autoRoute(); } }
+    // Startpunt = finish van de laatst gelopen etappe. Wordt automatisch gezet zodra er een nieuwe etappe in het logboek staat;
+    // daarna kun je de start nog zelf verslepen (of met "Klaar" vooruit plannen) tot er weer een nieuwe gelopen etappe bijkomt.
+    const l = [...walked].reverse().find(w => w.track && w.track.pts.length);
+    if (l) {
+      const key = `${l.nr}|${l.datum}|${l.titel}`;
+      if (store.get('startFrom', null) !== key) { startFromWalked(l); store.set('startFrom', key); }
+    }
+  }
+  function startFromWalked(l) {
+    const e = l.track.pts[l.track.pts.length - 1];
+    startM.setLatLng([e[0], e[1]]);
+    viaMs.forEach(m => map.removeLayer(m)); viaMs = [];
+    prevPts = null; store.set('prev', null);
+    $('stageNo').value = (l.nr || walked.length) + 1; $('stageNo').dispatchEvent(new Event('input'));
+    save(); map.setView([e[0], e[1]], 12); autoRoute();
   }
   function renderWalked() {
     walkLayer.clearLayers();
@@ -841,11 +855,7 @@
   $('detailClose').onclick = () => $('detail').classList.remove('open');
   $('detail').onclick = e => { if (e.target === $('detail')) $('detail').classList.remove('open'); };
   $('nextFromWalked').onclick = () => {
-    const l = [...walked].reverse().find(w => w.track && w.track.pts.length); if (!l) return;
-    const e = l.track.pts[l.track.pts.length - 1];
-    startM.setLatLng([e[0], e[1]]);
-    $('stageNo').value = (l.nr || walked.length) + 1; $('stageNo').dispatchEvent(new Event('input'));
-    save(); map.setView([e[0], e[1]], 12); autoRoute();
+    const l = [...walked].reverse().find(w => w.track && w.track.pts.length); if (l) startFromWalked(l);
   };
   function renderProgress() {
     const done = walked.reduce((a, w) => a + (w.km || (w.track ? w.track.dist / 1000 : 0)), 0);
