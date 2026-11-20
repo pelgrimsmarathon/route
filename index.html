@@ -714,6 +714,19 @@
     const t0 = times.find(t => t != null), t1 = [...times].reverse().find(t => t != null);
     return { pts, dist: len(pts), total: t0 && t1 ? (t1 - t0) / 1000 : 0, moving, up: ascent(pts), hr: hrs.length ? hrs.reduce((a, b) => a + b, 0) / hrs.length : 0, start: t0 };
   }
+  function decodePoly(str) { // Google encoded polyline (precisie 5)
+    const pts = []; let i = 0, lat = 0, lon = 0;
+    while (i < str.length) {
+      for (const k of [0, 1]) {
+        let b, shift = 0, res = 0;
+        do { b = str.charCodeAt(i++) - 63; res |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+        const d = (res & 1) ? ~(res >> 1) : (res >> 1);
+        if (k === 0) lat += d; else lon += d;
+      }
+      pts.push([lat / 1e5, lon / 1e5]);
+    }
+    return pts;
+  }
   async function loadWalked() {
     try {
       const r = await fetch('etappes/etappes.json', { cache: 'no-cache' });
@@ -721,8 +734,16 @@
       const js = await r.json();
       walked = (js.etappes || []).slice().sort((a, b) => (a.nr || 0) - (b.nr || 0));
       await Promise.all(walked.map(async w => {
-        if (!w.gpx) return;
-        try { const t = await (await fetch(w.gpx, { cache: 'no-cache' })).text(); w.track = parseTrack(t); } catch (e) { w.track = null; }
+        if (w.gpx) { try { const t = await (await fetch(w.gpx, { cache: 'no-cache' })).text(); w.track = parseTrack(t); } catch (e) { w.track = null; } }
+        if (!w.track && w.lijn) w.track = { pts: decodePoly(w.lijn), moving: 0, up: 0, hr: 0 };
+        if (w.track) {
+          const st = w.stats || {};
+          if (!w.track.dist) w.track.dist = len(w.track.pts);
+          if (st.km) w.track.dist = st.km * 1000;
+          if (st.looptijd_s) w.track.moving = st.looptijd_s;
+          if (st.stijgen_m != null) w.track.up = st.stijgen_m;
+          if (st.hartslag) w.track.hr = st.hartslag;
+        }
       }));
     } catch (e) { walked = []; }
     renderWalked();
