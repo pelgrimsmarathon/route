@@ -223,8 +223,9 @@
   // ---------- officiële route volgen ----------
   // refSegs: lijst losse lijnstukken (OSM-ways of GPX-tracksegmenten). We starten op het punt het dichtst bij S,
   // lopen richting R en springen aan het eind van een stuk door naar een aansluitend stuk (bij splitsingen: de tak richting R).
-  const JOIN = 120;
-  let refSegs = null, endIndex = null;
+  const JOIN = 120, EXACT = 3;
+  const JACOB_RE = /jacob|jakob|jacques|jacquaire|santiago|compostel|camino|via (mosana|gallia|lemovicensis|podiensis|turonensis|tolosana|campaniensis|monastica|arverna|brabantica|limburgensis)|gr ?65/i;
+  let refSegs = null, segRels = null, segPrio = null, endIndex = null;
   const cellKey = (p, dx, dy) => `${Math.floor(p[0] / 0.002) + dx}_${Math.floor(p[1] / 0.003) + dy}`;
   function buildIndex() {
     endIndex = new Map();
@@ -240,38 +241,46 @@
     const out = [];
     for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
       const l = endIndex.get(cellKey(p, dx, dy)); if (!l) continue;
-      for (const c of l) if (hav(p, refSegs[c.sj][c.pj]) < JOIN) out.push(c);
+      for (const c of l) { const g = hav(p, refSegs[c.sj][c.pj]); if (g < JOIN) out.push({ ...c, gap: g }); }
     }
     return out;
   }
+  // Blijf op dezelfde route-relatie zolang dat kan; stap pas over op een andere pelgrimsroute als die ophoudt.
+  const sameRoute = (a, b) => { if (!segRels) return true; for (const r of segRels[a]) if (segRels[b].has(r)) return true; return false; };
   function nearestOnRef(p) {
-    let best = { si: -1, pi: -1, d: Infinity };
-    refSegs.forEach((seg, si) => { for (let pi = 0; pi < seg.length; pi++) { const d = hav(p, seg[pi]); if (d < best.d) best = { si, pi, d }; } });
-    return best;
+    const all = [];
+    refSegs.forEach((seg, si) => { let bd = Infinity, bp = 0; for (let pi = 0; pi < seg.length; pi++) { const d = hav(p, seg[pi]); if (d < bd) { bd = d; bp = pi; } } all.push({ si, pi: bp, d: bd }); });
+    if (!all.length) return { si: -1, pi: -1, d: Infinity };
+    const min = Math.min(...all.map(a => a.d));
+    const close = all.filter(a => a.d <= min + 60);
+    close.sort((a, b) => (segPrio ? segPrio[b.si] - segPrio[a.si] : 0) || a.d - b.d);
+    return close[0];
   }
   function walk(si, pi, dir, maxM, goal, lookahead) {
     const out = [refSegs[si][pi]];
     let acc = 0, guard = 0, stop = 'lengte';
     const used = new Set([si]);
     while (acc < maxM) {
-      if (guard++ > 20000) { stop = 'limiet'; break; }
+      if (guard++ > 50000) { stop = 'limiet'; break; }
       const seg = refSegs[si], ni = pi + dir;
       if (ni >= 0 && ni < seg.length) { acc += hav(seg[pi], seg[ni]); out.push(seg[ni]); pi = ni; continue; }
       const end = seg[pi];
       const cands = connections(end).filter(c => !used.has(c.sj));
       if (!cands.length) { stop = 'einde'; break; }
-      let pick = cands[0];
-      if (cands.length > 1 && lookahead) {
+      for (const c of cands) c.tier = (sameRoute(si, c.sj) ? 0 : 2) + (c.gap < EXACT ? 0 : 1) + (segPrio ? (2 - segPrio[c.sj]) * 0.5 : 0);
+      const best = Math.min(...cands.map(c => c.tier));
+      const top = cands.filter(c => c.tier === best);
+      let pick = top[0];
+      if (top.length > 1 && lookahead) {
         let bd = Infinity;
-        for (const c of cands) {
+        for (const c of top) {
           const w = walk(c.sj, c.pj, c.dj, 5000, goal, false).pts;
           const d = hav(w[w.length - 1], goal);
           if (d < bd) { bd = d; pick = c; }
         }
-      }
+      } else if (top.length > 1) { top.sort((a, b) => a.gap - b.gap); pick = top[0]; }
       used.add(pick.sj); si = pick.sj; pi = pick.pj; dir = pick.dj;
-      const jp = refSegs[si][pi];
-      if (hav(end, jp) > 0.5) { acc += hav(end, jp); out.push(jp); }
+      if (pick.gap > 0.5) { acc += pick.gap; out.push(refSegs[si][pi]); }
     }
     return { pts: out, len: acc, stop };
   }
@@ -388,7 +397,7 @@
   // ---------- bron: OSM of GPX ----------
   const NAME_RE = 'Jacob|Jakob|Jacques|Jacquaire|Santiago|Compostel|Camino|Pelgrim|Pilger|Pèlerin|Pelerin|Peregrin|Via Mosana|Via Gallia|Via Lemovicensis|Via Podiensis|Via Turonensis|Via Tolosana|Via Campaniensis|Via Monastica|Via Arverna|Via Brabantica|Via Limburgensis';
   const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter', 'https://maps.mail.ru/osm/tools/overpass/api/interpreter'];
-  const OSM_RADIUS_KM = 90, REFETCH_MARGIN = 55000;
+  const OSM_RADIUS_KM = 75, REFETCH_MARGIN = 47000;
 
   async function fetchOSM(center) {
     const b = bboxAround(center, OSM_RADIUS_KM), bb = b.map(v => v.toFixed(4)).join(',');
@@ -450,11 +459,14 @@
     if (s === 'osm') {
       renderRelList();
       if (osm) {
-        const keys = new Set();
-        for (const r of osm.rels) if (!hiddenRels.has(r.id)) for (const k of osm.relWays[r.id]) keys.add(k);
-        refSegs = [...keys].map(k => osm.ways[k]).filter(Boolean);
-      } else refSegs = null;
-    } else refSegs = gpxSegs;
+        const keys = new Map();
+        for (const r of osm.rels) if (!hiddenRels.has(r.id)) for (const k of osm.relWays[r.id]) if (osm.ways[k]) { if (!keys.has(k)) keys.set(k, new Set()); keys.get(k).add(r.id); }
+        const prio = {}; for (const r of osm.rels) prio[r.id] = JACOB_RE.test(r.name) ? 2 : 1;
+        refSegs = [...keys.keys()].map(k => osm.ways[k]);
+        segRels = [...keys.values()];
+        segPrio = segRels.map(set => Math.max(...[...set].map(id => prio[id])));
+      } else { refSegs = null; segRels = segPrio = null; }
+    } else { refSegs = gpxSegs; segRels = segPrio = null; }
     if (refSegs && !refSegs.length) refSegs = null;
     if (refSegs) buildIndex();
     const km = refSegs ? refSegs.reduce((a, s) => a + len(s), 0) / 1000 : 0;
