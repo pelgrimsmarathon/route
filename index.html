@@ -57,6 +57,23 @@
   .seg label:first-child { border-radius:7px 0 0 7px; } .seg label:last-child { border-radius:0 7px 7px 0; border-left:none; }
   .seg input { display:none; }
   .seg input:checked + span { font-weight:700; color:var(--acc); }
+  .walk { padding:7px 6px; border-bottom:1px solid #eee; cursor:pointer; font-size:13px; line-height:1.35; }
+  .walk:hover { background:#f1ede5; }
+  .walk b { color:#2a7a2a; }
+  #detail { position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; z-index:2000; align-items:center; justify-content:center; padding:calc(10px + env(safe-area-inset-top)) 10px calc(10px + env(safe-area-inset-bottom)); }
+  #detail.open { display:flex; }
+  #detail .card { background:#fff; border-radius:12px; max-width:640px; width:100%; max-height:100%; overflow:auto; padding:16px 18px 20px; position:relative; }
+  #detail h2 { margin:0 30px 4px 0; font-size:19px; }
+  #detail .close { position:absolute; top:10px; right:10px; border:none; font-size:22px; line-height:1; padding:4px 8px; background:none; }
+  #detail .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(96px,1fr)); gap:8px; margin:12px 0; }
+  #detail .stats div { background:var(--bg); border-radius:8px; padding:8px; font-size:12px; color:var(--mut); }
+  #detail .stats b { display:block; font-size:17px; color:var(--ink); }
+  #detail .verslag p { margin:0 0 10px; line-height:1.5; font-size:15px; }
+  #detail .fotos { display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:6px; margin:10px 0; }
+  #detail .fotos img { width:100%; aspect-ratio:1; object-fit:cover; border-radius:6px; }
+  #detail .video { position:relative; padding-top:56.25%; margin:10px 0; }
+  #detail .video iframe { position:absolute; inset:0; width:100%; height:100%; border:0; border-radius:8px; }
+  #detail .links a { display:inline-block; margin:4px 10px 4px 0; }
   @media (max-width:760px) {
     #app { flex-direction:column-reverse; }
     #panel { width:100%; height:55%; border-right:none; border-top:1px solid var(--line); padding-top:12px; }
@@ -138,13 +155,14 @@
         <button id="gpxBtn" disabled>Download GPX</button>
       </div>
       <div class="hint">Op de iPhone: <i>Delen</i> → <i>WorkOutDoors</i>. Op de Mac: download en AirDrop naar je iPhone. De route synct daarna naar je Watch.</div>
-      <div class="btns"><button id="doneBtn" class="gold" disabled>Etappe gelopen → volgende etappe</button></div>
+      <div class="btns"><button id="doneBtn" class="gold" disabled>Klaar → finish wordt nieuwe start</button></div>
     </fieldset>
 
     <fieldset>
       <legend>Gelopen etappes</legend>
-      <ol id="stageList"></ol>
-      <div class="btns"><button id="undoStage">Laatste etappe terugzetten</button></div>
+      <div id="walkList" class="hint">Laden…</div>
+      <div class="btns"><button id="nextFromWalked" disabled>Start bij finish van laatste gelopen etappe</button></div>
+      <div class="hint">Gelopen etappes (GPX met tijden), foto's, video-links en verslagen worden voor jullie samen bijgehouden. Stuur ze naar Claude in het project <i>Pelgrimsmarathon</i>, dan komen ze hier te staan.</div>
     </fieldset>
 
     <fieldset>
@@ -166,6 +184,7 @@
   </div>
   <div id="map"></div>
 </div>
+<div id="detail"><div class="card"><button class="close" id="detailClose" aria-label="Sluiten">×</button><div id="detailBody"></div></div></div>
 
 <script>
 (() => {
@@ -312,7 +331,6 @@
   const defaults = { start: [51.0815, 5.8180], end: SANTIAGO, via: [] };
   let state = store.get('points', defaults);
   let routePts = null, fullPts = null, prevPts = store.get('prev', null);
-  let stages = store.get('stages', []);
   let osm = store.get('osm', null);           // {bbox, rels:[{id,name}], relWays:{id:[wayKey]}, ways:{key:[[lat,lon]]}}
   let hiddenRels = new Set(store.get('hiddenRels', []));
   let gpxSegs = store.get('gpxSegs', null);
@@ -670,33 +688,120 @@
     if (fit) map.fitBounds(routeLine.getBounds(), { padding: [30, 30], maxZoom: 14 });
   }
 
-  // ---------- voortgang ----------
+  // ---------- voortgang & gelopen etappes ----------
+  let walked = [];   // uit etappes/etappes.json (gedeeld, beheerd via Claude/GitHub)
+  const walkLayer = L.layerGroup().addTo(map);
+  function fmtDur(sec) { if (!sec) return '–'; const h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60); return h ? `${h}:${String(m).padStart(2, '0')} u` : `${m} min`; }
+  function fmtPace(sec, m) { if (!sec || !m) return '–'; const p = sec / (m / 1000); return `${Math.floor(p / 60)}:${String(Math.round(p % 60)).padStart(2, '0')} /km`; }
+  function parseTrack(text) {
+    const doc = new DOMParser().parseFromString(text, 'application/xml');
+    let nodes = [...doc.getElementsByTagName('trkpt')];
+    if (!nodes.length) nodes = [...doc.getElementsByTagName('rtept')];
+    const pts = [], times = [], hrs = [];
+    for (const n of nodes) {
+      const lat = +n.getAttribute('lat'), lon = +n.getAttribute('lon'); if (!isFinite(lat) || !isFinite(lon)) continue;
+      const e = n.getElementsByTagName('ele')[0], t = n.getElementsByTagName('time')[0], h = n.getElementsByTagNameNS('*', 'hr')[0];
+      pts.push(e && isFinite(+e.textContent) ? [lat, lon, +e.textContent] : [lat, lon]);
+      times.push(t ? Date.parse(t.textContent) : null);
+      if (h && isFinite(+h.textContent)) hrs.push(+h.textContent);
+    }
+    let moving = 0;
+    for (let i = 1; i < pts.length; i++) {
+      if (times[i] == null || times[i - 1] == null) continue;
+      const dt = (times[i] - times[i - 1]) / 1000, v = hav(pts[i - 1], pts[i]) / (dt || 1);
+      if (dt > 0 && dt < 120 && v > 0.6 && v < 9) moving += dt;
+    }
+    const t0 = times.find(t => t != null), t1 = [...times].reverse().find(t => t != null);
+    return { pts, dist: len(pts), total: t0 && t1 ? (t1 - t0) / 1000 : 0, moving, up: ascent(pts), hr: hrs.length ? hrs.reduce((a, b) => a + b, 0) / hrs.length : 0, start: t0 };
+  }
+  async function loadWalked() {
+    try {
+      const r = await fetch('etappes/etappes.json', { cache: 'no-cache' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const js = await r.json();
+      walked = (js.etappes || []).slice().sort((a, b) => (a.nr || 0) - (b.nr || 0));
+      await Promise.all(walked.map(async w => {
+        if (!w.gpx) return;
+        try { const t = await (await fetch(w.gpx, { cache: 'no-cache' })).text(); w.track = parseTrack(t); } catch (e) { w.track = null; }
+      }));
+    } catch (e) { walked = []; }
+    renderWalked();
+    if (!store.get('points', null) && walked.length) { const l = walked[walked.length - 1]; if (l.track && l.track.pts.length) { startM.setLatLng(l.track.pts[l.track.pts.length - 1].slice(0, 2)); $('stageNo').value = (l.nr || walked.length) + 1; $('stageNo').dispatchEvent(new Event('input')); save(); autoRoute(); } }
+  }
+  function renderWalked() {
+    walkLayer.clearLayers();
+    const box = $('walkList');
+    if (!walked.length) { box.innerHTML = 'Nog geen gelopen etappes opgeslagen.'; $('nextFromWalked').disabled = true; renderProgress(); return; }
+    box.innerHTML = '';
+    box.className = '';
+    walked.forEach((w, i) => {
+      const km = w.km || (w.track ? w.track.dist / 1000 : 0);
+      const d = document.createElement('div'); d.className = 'walk';
+      d.innerHTML = `<b>${esc(w.nr || i + 1)}.</b> ${esc(w.titel || 'Etappe ' + (w.nr || i + 1))}<br><span style="color:#777">${esc(w.datum || '')}${w.datum ? ' · ' : ''}${km.toFixed(1)} km${w.track && w.track.moving ? ' · ' + fmtDur(w.track.moving) : ''}${(w.fotos || []).length || w.album ? ' · 📷' : ''}${(w.videos || []).length ? ' · 🎬' : ''}${w.verslag ? ' · 📝' : ''}</span>`;
+      d.onclick = () => openDetail(w);
+      box.appendChild(d);
+      if (w.track && w.track.pts.length > 1) {
+        const line = L.polyline(w.track.pts.map(p => [p[0], p[1]]), { color: '#2a7a2a', weight: 4, opacity: .8 }).addTo(walkLayer);
+        line.on('click', () => openDetail(w));
+        const e = w.track.pts[w.track.pts.length - 1];
+        L.marker([e[0], e[1]], { icon: L.divIcon({ className: '', html: `<div class="pin" style="background:#2a7a2a;width:22px;height:22px;line-height:22px;font-size:11px">${esc(w.nr || i + 1)}</div>`, iconSize: [22, 22], iconAnchor: [11, 11] }) }).on('click', () => openDetail(w)).addTo(walkLayer);
+      }
+    });
+    $('nextFromWalked').disabled = !walked.some(w => w.track && w.track.pts.length);
+    renderProgress();
+  }
+  const ytEmbed = u => { const m = String(u).match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([\w-]{11})/); return m ? `https://www.youtube-nocookie.com/embed/${m[1]}` : null; };
+  const vimeoEmbed = u => { const m = String(u).match(/vimeo\.com\/(\d+)/); return m ? `https://player.vimeo.com/video/${m[1]}` : null; };
+  const safeUrl = u => /^(https?:\/\/|etappes\/)/.test(String(u)) ? String(u) : '#';
+  function openDetail(w) {
+    const t = w.track, km = w.km || (t ? t.dist / 1000 : 0);
+    let h = `<h2>${esc(w.nr ? w.nr + '. ' : '')}${esc(w.titel || 'Etappe')}</h2>
+      <div class="hint" style="margin:0">${esc(w.datum || '')}${w.van || w.naar ? ' · ' + esc(w.van || '') + ' → ' + esc(w.naar || '') : ''}${w.lopers ? ' · ' + esc([].concat(w.lopers).join(' & ')) : ''}</div>
+      <div class="stats"><div><b>${km.toFixed(2)}</b>km</div>`;
+    if (t && t.moving) h += `<div><b>${fmtDur(t.moving)}</b>looptijd</div><div><b>${fmtPace(t.moving, t.dist)}</b>tempo</div>`;
+    if (w.tijd) h += `<div><b>${esc(w.tijd)}</b>tijd</div>`;
+    if (t && t.up) h += `<div><b>${Math.round(t.up)} m</b>stijgen</div>`;
+    if (t && t.hr) h += `<div><b>${Math.round(t.hr)}</b>gem. hartslag</div>`;
+    h += `</div>`;
+    if (w.verslag) h += `<div class="verslag">${String(w.verslag).split(/\n\s*\n/).map(p => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join('')}</div>`;
+    const fotos = (w.fotos || []).map(safeUrl).filter(u => u !== '#');
+    if (fotos.length) h += `<div class="fotos">${fotos.map(u => `<a href="${esc(u)}" target="_blank" rel="noopener"><img src="${esc(u)}" loading="lazy" alt=""></a>`).join('')}</div>`;
+    for (const v of w.videos || []) { const e = ytEmbed(v) || vimeoEmbed(v); if (e) h += `<div class="video"><iframe src="${esc(e)}" allowfullscreen loading="lazy"></iframe></div>`; }
+    const links = [];
+    if (w.album) links.push(`<a href="${esc(safeUrl(w.album))}" target="_blank" rel="noopener">📷 Fotoalbum</a>`);
+    for (const v of w.videos || []) if (!ytEmbed(v) && !vimeoEmbed(v)) links.push(`<a href="${esc(safeUrl(v))}" target="_blank" rel="noopener">🎬 Video</a>`);
+    if (w.strava) links.push(`<a href="${esc(safeUrl(w.strava))}" target="_blank" rel="noopener">📈 Strava</a>`);
+    for (const l of w.links || []) links.push(`<a href="${esc(safeUrl(l.url || l))}" target="_blank" rel="noopener">🔗 ${esc(l.titel || 'Link')}</a>`);
+    if (w.gpx) links.push(`<a href="${esc(safeUrl(w.gpx))}" download>⬇︎ GPX</a>`);
+    if (links.length) h += `<div class="links">${links.join('')}</div>`;
+    $('detailBody').innerHTML = h;
+    $('detail').classList.add('open');
+    if (t && t.pts.length > 1) map.fitBounds(L.latLngBounds(t.pts.map(p => [p[0], p[1]])), { padding: [30, 30] });
+  }
+  $('detailClose').onclick = () => $('detail').classList.remove('open');
+  $('detail').onclick = e => { if (e.target === $('detail')) $('detail').classList.remove('open'); };
+  $('nextFromWalked').onclick = () => {
+    const l = [...walked].reverse().find(w => w.track && w.track.pts.length); if (!l) return;
+    const e = l.track.pts[l.track.pts.length - 1];
+    startM.setLatLng([e[0], e[1]]);
+    $('stageNo').value = (l.nr || walked.length) + 1; $('stageNo').dispatchEvent(new Event('input'));
+    save(); map.setView([e[0], e[1]], 12); autoRoute();
+  };
   function renderProgress() {
-    const done = stages.reduce((a, s) => a + s.km, 0);
+    const done = walked.reduce((a, w) => a + (w.km || (w.track ? w.track.dist / 1000 : 0)), 0);
     const left = hav(ll(startM), SANTIAGO) / 1000;
-    $('progress').textContent = stages.length
-      ? `${stages.length} etappe(s) · ${done.toFixed(1)} km gelopen · nog ±${Math.round(left)} km hemelsbreed tot Santiago`
+    $('progress').textContent = walked.length
+      ? `${walked.length} etappe(s) · ${done.toFixed(1)} km gelopen · nog ±${Math.round(left)} km hemelsbreed tot Santiago`
       : `Nog ±${Math.round(left)} km hemelsbreed tot Santiago`;
-    $('stageList').innerHTML = stages.map(s => `<li>${esc(s.name)} · ${s.km.toFixed(1)} km · ${esc(s.date)}</li>`).join('') || '<li style="list-style:none;margin-left:-18px;color:#888">Nog geen etappes afgerond.</li>';
-    $('undoStage').disabled = !stages.length;
   }
   $('doneBtn').onclick = () => {
     if (!routePts) return;
     const end = routePts[routePts.length - 1];
-    stages.push({ no: +$('stageNo').value, name: $('stageName').value || defaultName(), km: len(routePts) / 1000,
-      start: routePts[0].slice(0, 2), end: end.slice(0, 2), date: new Date().toLocaleDateString('nl-NL'), mode: lastMode });
-    store.set('stages', stages);
     prevPts = thin(routePts, 5); store.set('prev', prevPts);
     startM.setLatLng([end[0], end[1]]);
     viaMs.forEach(m => map.removeLayer(m)); viaMs = [];
-    $('stageNo').value = (+$('stageNo').value || stages.length) + 1; $('stageNo').dispatchEvent(new Event('input'));
+    $('stageNo').value = (+$('stageNo').value || 1) + 1; $('stageNo').dispatchEvent(new Event('input'));
     save(); autoRoute();
-  };
-  $('undoStage').onclick = () => {
-    const s = stages.pop(); if (!s) return;
-    store.set('stages', stages);
-    startM.setLatLng(s.start); $('stageNo').value = s.no; $('stageNo').dispatchEvent(new Event('input'));
-    prevPts = null; store.set('prev', null); save(); autoRoute();
   };
 
   // ---------- GPX maken / delen ----------
@@ -738,7 +843,7 @@ ${trkpts}
 
   $('resetBtn').onclick = () => {
     if ($('resetBtn').dataset.sure !== '1') { $('resetBtn').dataset.sure = '1'; $('resetBtn').textContent = 'Zeker? Klik nog een keer'; return; }
-    for (const k of ['points', 'prev', 'stages', 'osm', 'hiddenRels', 'gpxSegs', 'settings']) store.set(k, null);
+    for (const k of ['points', 'prev', 'osm', 'hiddenRels', 'gpxSegs', 'settings']) store.set(k, null);
     location.reload();
   };
 
@@ -748,6 +853,7 @@ ${trkpts}
   map.setView(state.start, 11);
   draw();
   doRoute();
+  loadWalked();
 })();
 </script>
 </body>
