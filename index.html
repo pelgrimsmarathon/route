@@ -15,79 +15,101 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
-  :root { --acc:#1f4e8c; --gold:#f2b705; --ink:#222; --mut:#666; --bg:#f7f5f0; --line:#e3ddd3; }
+  :root { --acc:#1f4e8c; --acc2:#163a6a; --gold:#f5b800; --ink:#242428; --mut:#6d6d78; --bg:#f2f2f4; --card:#fff; --line:#e6e6ea; }
   * { box-sizing:border-box; }
-  html,body { margin:0; height:100%; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; color:var(--ink); -webkit-text-size-adjust:100%; }
+  html,body { margin:0; height:100%; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",sans-serif; color:var(--ink); -webkit-text-size-adjust:100%; }
   #app { display:flex; height:100%; }
-  #panel { width:370px; max-width:100%; overflow:auto; -webkit-overflow-scrolling:touch; background:var(--bg); border-right:1px solid var(--line);
-           padding:calc(12px + env(safe-area-inset-top)) 14px calc(24px + env(safe-area-inset-bottom)) calc(14px + env(safe-area-inset-left)); }
+  #panel { width:380px; max-width:100%; overflow:auto; -webkit-overflow-scrolling:touch; background:var(--bg); border-right:1px solid var(--line);
+           padding:0 0 calc(24px + env(safe-area-inset-bottom)); }
   #map { flex:1; }
-  h1 { font-size:19px; margin:0; display:flex; align-items:center; gap:8px; }
-  h1 .shell { width:26px; height:26px; }
-  #progress { color:var(--mut); font-size:13px; margin:2px 0 12px; }
-  fieldset { border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin:0 0 12px; background:#fff; }
-  legend { font-weight:600; font-size:13px; padding:0 4px; }
-  label { display:block; font-size:13px; margin:6px 0 3px; color:#444; }
-  input[type=text], input[type=number], select { width:100%; padding:8px; border:1px solid #ccc; border-radius:7px; font-size:16px; background:#fff; }
+  .topbar { background:var(--acc); color:#fff; padding:calc(12px + env(safe-area-inset-top)) 16px 14px calc(16px + env(safe-area-inset-left)); }
+  h1 { font-size:20px; font-weight:800; letter-spacing:-.2px; margin:0; display:flex; align-items:center; gap:10px; }
+  h1 .shell { width:30px; height:30px; flex:0 0 auto; }
+  .kpis { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:12px; }
+  .kpis div { font-size:11px; text-transform:uppercase; letter-spacing:.4px; opacity:.85; }
+  .kpis b { display:block; font-size:22px; font-weight:800; letter-spacing:-.3px; text-transform:none; opacity:1; color:var(--gold); line-height:1.15; }
+  .wrap { padding:12px 12px 0; }
+  fieldset { border:none; border-radius:10px; padding:12px 14px 14px; margin:0 0 10px; background:var(--card); box-shadow:0 1px 2px rgba(0,0,0,.06); min-width:0; }
+  legend { float:left; width:100%; font-weight:800; font-size:15px; padding:0; margin:0 0 6px; color:var(--ink); }
+  legend + * { clear:both; }
+  label { display:block; font-size:12px; font-weight:600; margin:10px 0 4px; color:var(--mut); }
+  input[type=text], input[type=number], select { width:100%; padding:9px 10px; border:1px solid #d4d4da; border-radius:6px; font-size:16px; background:#fff; color:var(--ink); }
+  input:focus, select:focus { outline:2px solid var(--acc); outline-offset:-1px; border-color:var(--acc); }
   input[type=file] { font-size:13px; max-width:100%; }
+  input[type=checkbox] { accent-color:var(--acc); width:16px; height:16px; }
   .row { display:flex; gap:8px; align-items:end; }
   .row > * { flex:1; }
-  button { padding:9px 11px; border:1px solid #bbb; background:#fff; border-radius:7px; font-size:14px; cursor:pointer; color:var(--ink); }
-  button.primary { background:var(--acc); border-color:var(--acc); color:#fff; font-weight:600; }
-  button.gold { background:var(--gold); border-color:#d9a300; font-weight:600; }
-  button:disabled { opacity:.45; cursor:default; }
-  .btns { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
-  .chk { display:flex; gap:6px; align-items:center; font-size:13px; margin-top:6px; }
+  button { padding:9px 13px; border:1px solid #cfcfd6; background:#fff; border-radius:6px; font-size:14px; font-weight:600; cursor:pointer; color:var(--ink); }
+  button:hover { border-color:var(--acc); }
+  button.primary { background:var(--acc); border-color:var(--acc); color:#fff; }
+  button.primary:hover { background:var(--acc2); }
+  button.gold { background:var(--gold); border-color:var(--gold); color:#1d1d1f; }
+  button:disabled { opacity:.4; cursor:default; }
+  .btns { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .chk { display:flex; gap:8px; align-items:center; font-size:14px; font-weight:400; color:var(--ink); margin-top:8px; }
   .chk input { margin:0; }
   #stats { font-size:14px; line-height:1.5; }
-  #stats b.big { font-size:22px; }
-  .warn { color:#a33; font-size:13px; }
-  .ok { color:#2a7a2a; font-size:13px; }
-  .hint { font-size:12px; color:var(--mut); margin-top:6px; line-height:1.4; }
-  #results div { padding:6px; font-size:13px; cursor:pointer; border-bottom:1px solid #eee; }
-  #results div:hover { background:#f1ede5; }
-  #relList { max-height:180px; overflow:auto; margin-top:6px; }
-  #relList label { display:flex; gap:6px; align-items:flex-start; margin:3px 0; font-size:13px; }
-  #stageList { font-size:13px; margin:0; padding-left:18px; }
-  details summary { cursor:pointer; font-weight:600; font-size:13px; }
-  .pin { width:26px; height:26px; border-radius:50%; color:#fff; font:700 12px/26px sans-serif; text-align:center; border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.4); }
-  .km { background:#fff; border:1px solid #555; border-radius:9px; font:600 11px/16px sans-serif; padding:0 4px; white-space:nowrap; }
-  .seg { display:flex; gap:0; margin-top:4px; }
-  .seg label { flex:1; margin:0; text-align:center; border:1px solid #bbb; padding:7px 4px; font-size:13px; cursor:pointer; background:#fff; }
-  .seg label:first-child { border-radius:7px 0 0 7px; } .seg label:last-child { border-radius:0 7px 7px 0; border-left:none; }
+  .tiles { display:grid; grid-template-columns:repeat(3,1fr); gap:0; margin:2px 0 8px; }
+  .tiles div { font-size:11px; color:var(--mut); padding:2px 8px 2px 0; }
+  .tiles div + div { border-left:1px solid var(--line); padding-left:10px; }
+  .tiles b { display:block; font-size:22px; font-weight:800; color:var(--ink); letter-spacing:-.3px; line-height:1.2; }
+  .badge { display:inline-block; background:#e8eef7; color:var(--acc); font-size:11px; font-weight:700; border-radius:10px; padding:2px 8px; }
+  .warn { color:#b42318; font-size:13px; margin-top:6px; }
+  .ok { color:#1f7a3a; font-size:13px; }
+  .hint { font-size:12px; color:var(--mut); margin-top:6px; line-height:1.45; }
+  #results div { padding:8px 4px; font-size:13px; cursor:pointer; border-bottom:1px solid #eee; }
+  #results div:hover { background:#f5f7fb; }
+  #relList { max-height:180px; overflow:auto; margin-top:6px; border-top:1px solid var(--line); }
+  #relList label { display:flex; gap:8px; align-items:flex-start; margin:6px 0; font-size:13px; font-weight:400; color:var(--ink); }
+  details summary { cursor:pointer; font-weight:800; font-size:15px; }
+  .pin { width:26px; height:26px; border-radius:50%; color:#fff; font:800 12px/26px sans-serif; text-align:center; border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.4); }
+  .km { background:#fff; border:1.5px solid var(--acc); color:var(--acc); border-radius:9px; font:800 11px/15px sans-serif; padding:0 4px; white-space:nowrap; }
+  .seg { display:flex; gap:0; margin-top:2px; background:#ececf0; border-radius:7px; padding:3px; }
+  .seg label { flex:1; margin:0; text-align:center; padding:7px 4px; font-size:13px; font-weight:600; color:var(--mut); cursor:pointer; border-radius:5px; }
+  .seg label:has(input:checked) { background:#fff; color:var(--acc); box-shadow:0 1px 2px rgba(0,0,0,.1); }
   .seg input { display:none; }
-  .seg input:checked + span { font-weight:700; color:var(--acc); }
-  .walk { padding:7px 6px; border-bottom:1px solid #eee; cursor:pointer; font-size:13px; line-height:1.35; }
-  .walk:hover { background:#f1ede5; }
-  .walk b { color:#2a7a2a; }
-  #detail { position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; z-index:2000; align-items:center; justify-content:center; padding:calc(10px + env(safe-area-inset-top)) 10px calc(10px + env(safe-area-inset-bottom)); }
+  .walk { padding:12px 2px; border-bottom:1px solid var(--line); cursor:pointer; }
+  .walk:last-child { border-bottom:none; }
+  .walk:hover .wt { color:var(--acc); }
+  .walk .wt { font-weight:800; font-size:15px; }
+  .walk .wd { font-size:12px; color:var(--mut); margin:2px 0 8px; }
+  .walk .tiles { margin:0; }
+  .walk .tiles b { font-size:18px; }
+  .nr { display:inline-block; min-width:22px; height:22px; line-height:22px; text-align:center; border-radius:11px; background:var(--gold); color:#1d1d1f; font-size:12px; font-weight:800; margin-right:6px; }
+  #detail { position:fixed; inset:0; background:rgba(20,24,36,.55); display:none; z-index:2000; align-items:center; justify-content:center; padding:calc(10px + env(safe-area-inset-top)) 10px calc(10px + env(safe-area-inset-bottom)); }
   #detail.open { display:flex; }
-  #detail .card { background:#fff; border-radius:12px; max-width:640px; width:100%; max-height:100%; overflow:auto; padding:16px 18px 20px; position:relative; }
-  #detail h2 { margin:0 30px 4px 0; font-size:19px; }
-  #detail .close { position:absolute; top:10px; right:10px; border:none; font-size:22px; line-height:1; padding:4px 8px; background:none; }
-  #detail .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(96px,1fr)); gap:8px; margin:12px 0; }
-  #detail .stats div { background:var(--bg); border-radius:8px; padding:8px; font-size:12px; color:var(--mut); }
-  #detail .stats b { display:block; font-size:17px; color:var(--ink); }
-  #detail .verslag p { margin:0 0 10px; line-height:1.5; font-size:15px; }
+  #detail .card { background:#fff; border-radius:12px; max-width:640px; width:100%; max-height:100%; overflow:auto; position:relative; }
+  #detail .dhead { background:var(--acc); color:#fff; padding:16px 18px 14px; }
+  #detail .dhead .hint { color:#dbe5f3; margin:2px 0 0; }
+  #detail .dbody { padding:14px 18px 20px; }
+  #detail h2 { margin:0 30px 0 0; font-size:21px; font-weight:800; }
+  #detail .close { position:absolute; top:10px; right:10px; border:none; font-size:24px; line-height:1; padding:4px 8px; background:none; color:#fff; }
+  #detail .tiles { grid-template-columns:repeat(3,1fr); row-gap:10px; }
+  #detail .verslag p { margin:0 0 10px; line-height:1.55; font-size:15px; }
   #detail .fotos { display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:6px; margin:10px 0; }
   #detail .fotos img { width:100%; aspect-ratio:1; object-fit:cover; border-radius:6px; }
   #detail .video { position:relative; padding-top:56.25%; margin:10px 0; }
   #detail .video iframe { position:absolute; inset:0; width:100%; height:100%; border:0; border-radius:8px; }
-  #detail .links a { display:inline-block; margin:4px 10px 4px 0; }
+  #detail .links a { display:inline-block; margin:6px 8px 0 0; padding:7px 11px; border:1px solid #cfcfd6; border-radius:6px; color:var(--acc); font-weight:600; font-size:13px; text-decoration:none; }
+  a { color:var(--acc); }
   @media (max-width:760px) {
     #app { flex-direction:column-reverse; }
-    #panel { width:100%; height:55%; border-right:none; border-top:1px solid var(--line); padding-top:12px; }
-    #map { min-height:45%; }
+    #panel { width:100%; height:56%; border-right:none; border-top:1px solid var(--line); }
+    .topbar { padding-top:12px; }
+    #map { min-height:44%; }
   }
 </style>
 </head>
 <body>
 <div id="app">
   <div id="panel">
-    <h1><svg class="shell" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#1f4e8c"/><g stroke="#f2b705" stroke-width="4" stroke-linecap="round" fill="none"><path d="M32 52 L10 22"/><path d="M32 52 L18 14"/><path d="M32 52 L32 11"/><path d="M32 52 L46 14"/><path d="M32 52 L54 22"/></g></svg>Pelgrimsmarathon</h1>
-    <div id="progress"></div>
+    <div class="topbar">
+      <h1><svg class="shell" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#163a6a"/><g stroke="#f5b800" stroke-width="4.5" stroke-linecap="round" fill="none"><path d="M32 52 L10 22"/><path d="M32 52 L18 14"/><path d="M32 52 L32 11"/><path d="M32 52 L46 14"/><path d="M32 52 L54 22"/></g></svg>Pelgrimsmarathon</h1>
+      <div class="kpis" id="progress"></div>
+    </div>
+    <div class="wrap">
 
-    <fieldset style="border-color:var(--acc)">
+    <fieldset>
       <legend>1 · Officiële pelgrimsroute</legend>
       <div class="seg">
         <label><input type="radio" name="src" value="osm" checked><span>Automatisch (OSM)</span></label>
@@ -180,7 +202,8 @@
         <div class="btns"><button id="resetBtn">Alles resetten</button></div>
       </details>
     </fieldset>
-    <div class="hint">Kaart- en routedata © OpenStreetMap-bijdragers (ODbL) · Overpass API · BRouter · OSRM · Nominatim.</div>
+    <div class="hint" style="padding:0 4px">Kaart- en routedata © OpenStreetMap-bijdragers (ODbL) · Overpass API · BRouter · OSRM · Nominatim.</div>
+    </div>
   </div>
   <div id="map"></div>
 </div>
@@ -337,20 +360,20 @@
   let clickMode = 'via', lastMode = '';
 
   const icon = (txt, col) => L.divIcon({ className: '', html: `<div class="pin" style="background:${col}">${txt}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] });
-  const startM = L.marker(state.start, { draggable: true, icon: icon('S', '#2a7a2a') }).addTo(map);
-  const endM = L.marker(state.end, { draggable: true, icon: icon('R', '#b5562b') }).addTo(map);
+  const startM = L.marker(state.start, { draggable: true, icon: icon('S', '#1f4e8c') }).addTo(map);
+  const endM = L.marker(state.end, { draggable: true, icon: icon('R', '#242428') }).addTo(map);
   let viaMs = [];
-  const refLine = L.polyline([], { color: '#1f4e8c', weight: 3, opacity: .45 }).addTo(map);
+  const refLine = L.polyline([], { color: '#5b8bd0', weight: 3, opacity: .45, dashArray: '2 6' }).addTo(map);
   const prevLine = L.polyline([], { color: '#555', weight: 3, opacity: .6 }).addTo(map);
   const fullLine = L.polyline([], { color: '#888', weight: 4, opacity: .6, dashArray: '6 6' }).addTo(map);
-  const routeLine = L.polyline([], { color: '#e0662b', weight: 5 }).addTo(map);
+  const routeLine = L.polyline([], { color: '#1f4e8c', weight: 5 }).addTo(map);
   const kmLayer = L.layerGroup().addTo(map);
-  const finishM = L.circleMarker([0, 0], { radius: 8, color: '#000', fillColor: '#f2b705', fillOpacity: 1, weight: 2 });
+  const finishM = L.circleMarker([0, 0], { radius: 8, color: '#1f4e8c', fillColor: '#f5b800', fillOpacity: 1, weight: 3 });
 
   const ll = m => { const p = m.getLatLng(); return [+p.lat.toFixed(6), +p.lng.toFixed(6)]; };
   function save() { state = { start: ll(startM), end: ll(endM), via: viaMs.map(ll) }; store.set('points', state); }
   function addVia(latlng, idx) {
-    const m = L.marker(latlng, { draggable: true, icon: icon('•', '#3b6fb6') }).addTo(map);
+    const m = L.marker(latlng, { draggable: true, icon: icon('•', '#5b8bd0') }).addTo(map);
     m.on('dragend', () => { save(); autoRoute(); });
     m.on('click', () => { map.removeLayer(m); viaMs = viaMs.filter(x => x !== m); save(); autoRoute(); });
     if (idx == null) viaMs.push(m); else viaMs.splice(idx, 0, m);
@@ -682,9 +705,8 @@
     let msg = '';
     if ($('endMode').value === 'cut' && total + 50 < target && !/routedata stopt/.test(note))
       msg = `<div class="warn">${(total / 1000).toFixed(2)} km: het richtpunt ligt dichterbij dan de doelafstand. Leg het richtpunt verder weg (bv. terug op Santiago) of kies <i>eindigen bij richtpunt</i>.</div>`;
-    $('stats').innerHTML = `<b class="big">${(total / 1000).toFixed(2)} km</b>${up ? ` · ↑ ${Math.round(up)} m` : ''}
-      ${lastMode === 'ref' ? '<span class="ok"> · officiële route</span>' : ''}
-      <br>Finish (gele stip): ${end[0].toFixed(5)}, ${end[1].toFixed(5)}` + msg + note;
+    $('stats').innerHTML = `<div class="tiles"><div>Afstand<b>${(total / 1000).toFixed(2)} km</b></div><div>Stijgen<b>${up ? Math.round(up) + ' m' : '–'}</b></div><div>Route<b style="font-size:15px;padding-top:5px">${lastMode === 'ref' ? 'Officieel' : 'Eigen'}</b></div></div>
+      <div class="hint" style="margin-top:0">Finish (gele stip): ${end[0].toFixed(5)}, ${end[1].toFixed(5)}</div>` + msg + note;
     if (fit) map.fitBounds(routeLine.getBounds(), { padding: [30, 30], maxZoom: 14 });
   }
 
@@ -692,6 +714,7 @@
   let walked = [];   // uit etappes/etappes.json (gedeeld, beheerd via Claude/GitHub)
   const walkLayer = L.layerGroup().addTo(map);
   function fmtDur(sec) { if (!sec) return '–'; const h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60); return h ? `${h}:${String(m).padStart(2, '0')} u` : `${m} min`; }
+  function fmtDate(d) { if (!d) return ''; const t = new Date(d + 'T12:00:00'); return isNaN(t) ? d : t.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); }
   function fmtPace(sec, m) { if (!sec || !m) return '–'; const p = sec / (m / 1000); return `${Math.floor(p / 60)}:${String(Math.round(p % 60)).padStart(2, '0')} /km`; }
   function parseTrack(text) {
     const doc = new DOMParser().parseFromString(text, 'application/xml');
@@ -758,14 +781,19 @@
     walked.forEach((w, i) => {
       const km = w.km || (w.track ? w.track.dist / 1000 : 0);
       const d = document.createElement('div'); d.className = 'walk';
-      d.innerHTML = `<b>${esc(w.nr || i + 1)}.</b> ${esc(w.titel || 'Etappe ' + (w.nr || i + 1))}<br><span style="color:#777">${esc(w.datum || '')}${w.datum ? ' · ' : ''}${km.toFixed(1)} km${w.track && w.track.moving ? ' · ' + fmtDur(w.track.moving) : ''}${(w.fotos || []).length || w.album ? ' · 📷' : ''}${(w.videos || []).length ? ' · 🎬' : ''}${w.verslag ? ' · 📝' : ''}</span>`;
+      const mv = w.track && w.track.moving;
+      d.innerHTML = `<div class="wt"><span class="nr">${esc(w.nr || i + 1)}</span>${esc(w.titel || 'Etappe ' + (w.nr || i + 1))}</div>
+        <div class="wd">${esc(fmtDate(w.datum))}${(w.fotos || []).length || w.album ? ' · 📷' : ''}${(w.videos || []).length ? ' · 🎬' : ''}${w.verslag ? ' · 📝' : ''}</div>
+        <div class="tiles"><div>Afstand<b>${km.toFixed(1)} km</b></div><div>Tempo<b>${mv ? fmtPace(mv, km * 1000) : '–'}</b></div><div>Tijd<b>${mv ? fmtDur(mv) : '–'}</b></div></div>`;
       d.onclick = () => openDetail(w);
       box.appendChild(d);
       if (w.track && w.track.pts.length > 1) {
-        const line = L.polyline(w.track.pts.map(p => [p[0], p[1]]), { color: '#2a7a2a', weight: 4, opacity: .8 }).addTo(walkLayer);
+        const ll2 = w.track.pts.map(p => [p[0], p[1]]);
+        L.polyline(ll2, { color: '#5c4500', weight: 7, opacity: .55 }).addTo(walkLayer);
+        const line = L.polyline(ll2, { color: '#f5b800', weight: 4, opacity: 1 }).addTo(walkLayer);
         line.on('click', () => openDetail(w));
         const e = w.track.pts[w.track.pts.length - 1];
-        L.marker([e[0], e[1]], { icon: L.divIcon({ className: '', html: `<div class="pin" style="background:#2a7a2a;width:22px;height:22px;line-height:22px;font-size:11px">${esc(w.nr || i + 1)}</div>`, iconSize: [22, 22], iconAnchor: [11, 11] }) }).on('click', () => openDetail(w)).addTo(walkLayer);
+        L.marker([e[0], e[1]], { icon: L.divIcon({ className: '', html: `<div class="pin" style="background:#f5b800;color:#1d1d1f;width:22px;height:22px;line-height:20px;font-size:11px">${esc(w.nr || i + 1)}</div>`, iconSize: [22, 22], iconAnchor: [11, 11] }) }).on('click', () => openDetail(w)).addTo(walkLayer);
       }
     });
     $('nextFromWalked').disabled = !walked.some(w => w.track && w.track.pts.length);
@@ -776,13 +804,13 @@
   const safeUrl = u => /^(https?:\/\/|etappes\/)/.test(String(u)) ? String(u) : '#';
   function openDetail(w) {
     const t = w.track, km = w.km || (t ? t.dist / 1000 : 0);
-    let h = `<h2>${esc(w.nr ? w.nr + '. ' : '')}${esc(w.titel || 'Etappe')}</h2>
-      <div class="hint" style="margin:0">${esc(w.datum || '')}${w.van || w.naar ? ' · ' + esc(w.van || '') + ' → ' + esc(w.naar || '') : ''}${w.lopers ? ' · ' + esc([].concat(w.lopers).join(' & ')) : ''}</div>
-      <div class="stats"><div><b>${km.toFixed(2)}</b>km</div>`;
-    if (t && t.moving) h += `<div><b>${fmtDur(t.moving)}</b>looptijd</div><div><b>${fmtPace(t.moving, t.dist)}</b>tempo</div>`;
-    if (w.tijd) h += `<div><b>${esc(w.tijd)}</b>tijd</div>`;
-    if (t && t.up) h += `<div><b>${Math.round(t.up)} m</b>stijgen</div>`;
-    if (t && t.hr) h += `<div><b>${Math.round(t.hr)}</b>gem. hartslag</div>`;
+    let h = `<div class="dhead"><h2>${esc(w.nr ? w.nr + '. ' : '')}${esc(w.titel || 'Etappe')}</h2>
+      <div class="hint">${esc(fmtDate(w.datum))}${w.starttijd ? ' · ' + esc(w.starttijd) : ''}${w.lopers ? ' · ' + esc([].concat(w.lopers).join(' & ')) : ''}</div></div>
+      <div class="dbody"><div class="tiles"><div>Afstand<b>${km.toFixed(2)} km</b></div>`;
+    if (t && t.moving) h += `<div>Tempo<b>${fmtPace(t.moving, t.dist)}</b></div><div>Looptijd<b>${fmtDur(t.moving)}</b></div>`;
+    if (w.tijd) h += `<div>Tijd<b>${esc(w.tijd)}</b></div>`;
+    if (t && t.up) h += `<div>Stijgen<b>${Math.round(t.up)} m</b></div>`;
+    if (t && t.hr) h += `<div>Hartslag<b>${Math.round(t.hr)}</b></div>`;
     h += `</div>`;
     if (w.verslag) h += `<div class="verslag">${String(w.verslag).split(/\n\s*\n/).map(p => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join('')}</div>`;
     const fotos = (w.fotos || []).map(safeUrl).filter(u => u !== '#');
@@ -795,6 +823,7 @@
     for (const l of w.links || []) links.push(`<a href="${esc(safeUrl(l.url || l))}" target="_blank" rel="noopener">🔗 ${esc(l.titel || 'Link')}</a>`);
     if (w.gpx) links.push(`<a href="${esc(safeUrl(w.gpx))}" download>⬇︎ GPX</a>`);
     if (links.length) h += `<div class="links">${links.join('')}</div>`;
+    h += `</div>`;
     $('detailBody').innerHTML = h;
     $('detail').classList.add('open');
     if (t && t.pts.length > 1) map.fitBounds(L.latLngBounds(t.pts.map(p => [p[0], p[1]])), { padding: [30, 30] });
@@ -811,9 +840,7 @@
   function renderProgress() {
     const done = walked.reduce((a, w) => a + (w.km || (w.track ? w.track.dist / 1000 : 0)), 0);
     const left = hav(ll(startM), SANTIAGO) / 1000;
-    $('progress').textContent = walked.length
-      ? `${walked.length} etappe(s) · ${done.toFixed(1)} km gelopen · nog ±${Math.round(left)} km hemelsbreed tot Santiago`
-      : `Nog ±${Math.round(left)} km hemelsbreed tot Santiago`;
+    $('progress').innerHTML = `<div><b>${done.toFixed(0)} km</b>gelopen</div><div><b>${walked.length}</b>etappes</div><div><b>±${Math.round(left)}</b>km tot Santiago</div>`;
   }
   $('doneBtn').onclick = () => {
     if (!routePts) return;
